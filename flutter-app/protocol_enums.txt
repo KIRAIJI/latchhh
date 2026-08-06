@@ -1,0 +1,36 @@
+﻿=== EPaper.ProtocolHelper+CMD ===
+设备参数 = 1 (0x1)
+设备状态 = 2 (0x2)
+刷新正面 = 3 (0x3)
+刷新反面 = 4 (0x4)
+发送数据 = 5 (0x5)
+
+=== EPaper.ProtocolHelper+RESPONSE ===
+PANEL_A = 0 (0x0)
+PANEL_B = 1 (0x1)
+PANEL_D = 2 (0x2)
+CHECK_SUM_PASS = 3 (0x3)
+CHECK_SUM_ERROR = 4 (0x4)
+HEADER_FOUND = 5 (0x5)
+NO_HEADER_FOUND = 6 (0x6)
+FRAME_OUT_RANGE = 7 (0x7)
+FRAME_ORDER_ERR = 8 (0x8)
+PANEL_INIT_OK = 9 (0x9)
+PANEL_ON_PROCESS = 10 (0xA)
+PANEL_UPDATE_OK = 11 (0xB)
+UNDEFINED_MSG = 12 (0xC)
+
+=== EPaper.ProtocolHelper+Type+Vendor ===
+DKE = 1 (0x1)
+HLT = 2 (0x2)
+JDF = 3 (0x3)
+
+=== EPaper.ProtocolHelper+Type+Resolution ===
+三色37寸240x416 = 1 (0x1)
+三色75寸640x384 = 2 (0x2)
+三色75寸800x480 = 3 (0x3)
+
+=== EPaper.ProtocolHelper+Type+Screen ===
+单面 = 1 (0x1)
+双面 = 2 (0x2)
+

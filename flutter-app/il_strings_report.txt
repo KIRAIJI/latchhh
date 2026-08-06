@@ -1,0 +1,8 @@
+﻿Extracted IL strings from ProtocolHelper/SerialPortHelper/ImageConvert
+Count: 10
+
+Keyword hits:
+SELECT * FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'
+
+Hex-like hits:
+1.0.211029

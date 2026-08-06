@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>1058513152685-h48jm2fhmo1j3ocj2vmg9b2rj1ad6ne0.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.1058513152685-h48jm2fhmo1j3ocj2vmg9b2rj1ad6ne0</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>1058513152685-5j4qq0t8i6or7h6662p4k75gp1qhkea1.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyDFrNJ4akzGCyKXI6eJEIZBJgW9MTNRrvc</string>
+	<key>GCM_SENDER_ID</key>
+	<string>1058513152685</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.latch.mobile</string>
+	<key>PROJECT_ID</key>
+	<string>latch-374c0</string>
+	<key>STORAGE_BUCKET</key>
+	<string>latch-374c0.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:1058513152685:ios:264419d644abea6802f424</string>
+</dict>
+</plist>

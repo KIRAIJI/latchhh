@@ -1,0 +1,6 @@
+﻿Total packets: 336
+Min length: 788
+Max length: 788
+Length 788: 336 packets
+First packet head: 7F F7 05 01 01 01 00 00 00 00 00 00 00 00 00 00
+Last packet head: 7F F7 05 01 01 01 4F FF FF FF FF FF FF FF FF FF

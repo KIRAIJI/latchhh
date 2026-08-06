@@ -1,0 +1,62 @@
+name: LATCH CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: latch-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Laravel
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          working-directory: backend-app
+      - name: Configure test application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: Validate formatting
+        run: vendor/bin/pint --test
+      - name: Run backend tests
+        run: php artisan test
+
+  flutter:
+    name: Flutter
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.7
+          cache: true
+      - name: Install packages
+        run: flutter pub get
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test
+      - name: Compile Android debug artifact
+        run: flutter build apk --debug

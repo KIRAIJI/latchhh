@@ -1,0 +1,39 @@
+<?php
+
+namespace App\Policies;
+
+use App\Models\Device;
+use App\Models\User;
+
+class DevicePolicy
+{
+    public function view(User $user, Device $device): bool
+    {
+        return $device->user_id === $user->id;
+    }
+
+    public function update(User $user, Device $device): bool
+    {
+        return $this->view($user, $device);
+    }
+
+    public function release(User $user, Device $device): bool
+    {
+        return $this->view($user, $device);
+    }
+
+    public function viewLocationHistory(User $user, Device $device): bool
+    {
+        return $this->view($user, $device);
+    }
+
+    public function viewActivity(User $user, Device $device): bool
+    {
+        return $this->view($user, $device);
+    }
+
+    public function manageGeofence(User $user, Device $device): bool
+    {
+        return $this->view($user, $device);
+    }
+}

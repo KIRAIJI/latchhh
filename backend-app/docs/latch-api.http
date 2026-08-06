@@ -1,0 +1,209 @@
+@base_url = http://localhost/api/v1
+@token = replace-with-sanctum-token
+@item_id = 1
+@notification_id = 1
+@fcm_token = replace-with-device-fcm-token
+@firebase_id_token = replace-with-short-lived-firebase-id-token
+
+### Register
+POST {{base_url}}/auth/register
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Sample User",
+  "email": "user@example.com",
+  "password": "Password!123",
+  "password_confirmation": "Password!123",
+  "accepted_terms": true,
+  "acknowledged_privacy": true
+}
+
+### Login
+POST {{base_url}}/auth/login
+Accept: application/json
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "Password!123"
+}
+
+### Google login/registration (Firebase ID token from the mobile SDK)
+POST {{base_url}}/auth/oauth/google
+Accept: application/json
+Content-Type: application/json
+
+{
+  "id_token": "{{firebase_id_token}}",
+  "accepted_terms": true,
+  "acknowledged_privacy": true
+}
+
+### Forgot password (always 202 for valid email shape)
+POST {{base_url}}/auth/forgot-password
+Accept: application/json
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+
+### Reset password (token comes from the email deep link)
+POST {{base_url}}/auth/reset-password
+Accept: application/json
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "token": "replace-with-reset-token",
+  "password": "NewPassword!456",
+  "password_confirmation": "NewPassword!456"
+}
+
+### Current user
+GET {{base_url}}/auth/me
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Resend verification email
+POST {{base_url}}/auth/email/verification-notification
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Change password
+PUT {{base_url}}/profile/password
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "current_password": "Password!123",
+  "password": "NewPassword!456",
+  "password_confirmation": "NewPassword!456"
+}
+
+### List items
+GET {{base_url}}/items
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Claim item
+POST {{base_url}}/items/claim
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "device_uid": "LATCH-7K3M-P9Q2",
+  "item_name": "Black Backpack"
+}
+
+### Item detail
+GET {{base_url}}/items/{{item_id}}
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Rename item
+PATCH {{base_url}}/items/{{item_id}}
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "item_name": "Blue Luggage"
+}
+
+### Save geofence
+PUT {{base_url}}/items/{{item_id}}/geofence
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Home Zone",
+  "center_latitude": 15.145,
+  "center_longitude": 120.588,
+  "radius_meters": 100,
+  "notify_on_enter": true,
+  "notify_on_exit": true,
+  "is_active": true
+}
+
+### Real location history
+GET {{base_url}}/items/{{item_id}}/location-history?per_page=500
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Global activity
+GET {{base_url}}/activity?per_page=50
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Item activity
+GET {{base_url}}/items/{{item_id}}/activity?per_page=50
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Notifications
+GET {{base_url}}/notifications?read_state=all&per_page=50
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Mark one notification read
+PATCH {{base_url}}/notifications/{{notification_id}}/read
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Mark all notifications read
+PATCH {{base_url}}/notifications/read-all
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Delete one notification
+DELETE {{base_url}}/notifications/{{notification_id}}
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Register this app installation for system push
+POST {{base_url}}/push-tokens
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "token": "{{fcm_token}}",
+  "platform": "android",
+  "device_name": "Physical test phone",
+  "app_version": "1.0.0+1"
+}
+
+### Unregister this app installation
+DELETE {{base_url}}/push-tokens
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "token": "{{fcm_token}}"
+}
+
+### Release item
+DELETE {{base_url}}/items/{{item_id}}
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Logout current session
+POST {{base_url}}/auth/logout
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Delete a passwordless Google account after recent mobile reauthentication
+DELETE {{base_url}}/account
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "oauth_id_token": "{{firebase_id_token}}"
+}

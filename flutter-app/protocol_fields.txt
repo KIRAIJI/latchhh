@@ -1,0 +1,13 @@
+﻿ProtocolHelper fields:
+Int32[,] STANDARDS = System.Int32[,]
+ProtocolHelper instance = EPaper.ProtocolHelper
+Int32 DEFAULT_BLOCK = 780
+
+Type class fields/properties:
+FIELD Vendor vendor
+FIELD Resolution resolution
+FIELD Screen screen
+
+Type constructors:
+CTOR ()
+CTOR (Vendor v, Resolution r, Screen s)
