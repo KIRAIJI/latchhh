@@ -63,8 +63,10 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1058513152685',
     projectId: 'latch-374c0',
     storageBucket: 'latch-374c0.firebasestorage.app',
-    androidClientId: '1058513152685-5j4qq0t8i6or7h6662p4k75gp1qhkea1.apps.googleusercontent.com',
-    iosClientId: '1058513152685-h48jm2fhmo1j3ocj2vmg9b2rj1ad6ne0.apps.googleusercontent.com',
+    androidClientId:
+        '1058513152685-5j4qq0t8i6or7h6662p4k75gp1qhkea1.apps.googleusercontent.com',
+    iosClientId:
+        '1058513152685-h48jm2fhmo1j3ocj2vmg9b2rj1ad6ne0.apps.googleusercontent.com',
     iosBundleId: 'com.latch.mobile',
   );
   static const FirebaseOptions macos = FirebaseOptions(
