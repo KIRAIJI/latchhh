@@ -75,7 +75,13 @@ jobs:
           flutter-version: 3.41.7
           cache: true
       - name: Install packages
-        run: flutter pub get
+        run: |
+          if ! flutter pub get >flutter-pub-get.log 2>&1; then
+            cat flutter-pub-get.log
+            message="$(tail -n 30 flutter-pub-get.log | tr '\n' ' ')"
+            echo "::error file=.github/workflows/ci.yml,line=68::$message"
+            exit 1
+          fi
       - name: Install iOS pods
         run: pod install --project-directory=ios
       - name: Compile iOS simulator artifact
