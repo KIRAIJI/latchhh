@@ -25,6 +25,8 @@ jobs:
           php-version: "8.2"
           extensions: mbstring, pdo_sqlite, sqlite3
           coverage: none
+      - name: Prepare test environment
+        run: cp .env.example .env
       - name: Install backend dependencies
         run: |
           if ! composer install --no-interaction --prefer-dist --no-progress >composer-install.log 2>&1; then
@@ -34,9 +36,7 @@ jobs:
             exit 1
           fi
       - name: Configure test application
-        run: |
-          cp .env.example .env
-          php artisan key:generate
+        run: php artisan key:generate
       - name: Validate formatting
         run: vendor/bin/pint --test
       - name: Run backend tests
