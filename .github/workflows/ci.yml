@@ -84,13 +84,5 @@ jobs:
             echo "::error file=.github/workflows/ci.yml,line=68::$message"
             exit 1
           fi
-      - name: Install iOS pods
-        run: |
-          if ! pod install --project-directory=ios >pod-install.log 2>&1; then
-            cat pod-install.log
-            message="$(tail -n 40 pod-install.log | tr '\n' ' ')"
-            echo "::error file=.github/workflows/ci.yml,line=81::$message"
-            exit 1
-          fi
       - name: Compile iOS simulator artifact
         run: flutter build ios --simulator --debug

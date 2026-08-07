@@ -80,14 +80,13 @@ Ang `Local.xcconfig` ay ignored ng Git para hindi ma-publish ang totoong API
 key. May safe placeholder sa repository, pero hindi gagana ang map hangga't
 walang real key sa local file.
 
-## 4. Install ang iOS dependencies
+## 4. Ihanda ang iOS dependencies
 
 Mula sa `flutter-app` directory:
 
 ```bash
-cd ios
-pod install --repo-update
-cd ..
+flutter config --enable-swift-package-manager
+flutter pub get
 ```
 
 Pagkatapos, buksan ang Xcode workspace:
@@ -97,6 +96,11 @@ open ios/Runner.xcworkspace
 ```
 
 Laging buksan ang **`Runner.xcworkspace`**, hindi ang `Runner.xcodeproj`.
+
+Huwag manual na patakbuhin ang `pod install`. Ang project ay gumagamit ng
+Swift Package Manager-only plugin kasama ng CocoaPods-based Flutter plugins.
+Hayaan ang `flutter build ios` o `flutter build ipa` na i-coordinate ang native
+dependencies.
 
 ## 5. I-configure ang Apple signing
 
@@ -252,11 +256,8 @@ Mula sa `flutter-app`:
 
 ```bash
 flutter clean
+flutter config --enable-swift-package-manager
 flutter pub get
-
-cd ios
-pod install
-cd ..
 
 flutter analyze
 flutter test
