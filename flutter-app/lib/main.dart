@@ -18,6 +18,7 @@ import 'latch_ui/core/services/push_notification_service.dart';
 import 'latch_ui/features/epaper/data/x1_epaper_codec.dart';
 import 'latch_ui/features/epaper/data/x1_epaper_compression.dart';
 import 'latch_ui/features/epaper/data/x1_epaper_image_normalizer.dart';
+import 'latch_ui/features/epaper/data/x1_iso7816_transport.dart';
 import 'latch_ui/features/epaper/data/x1_nfc_epaper_protocol.dart';
 import 'latch_ui/features/epaper/data/x1_nfc_transceive_retry.dart';
 import 'latch_ui/features/epaper/data/x1_vendor_image_pipeline.dart';
@@ -406,15 +407,17 @@ class _UploaderPageState extends State<UploaderPage> {
         _apkColorPipeline == _ApkColorPipeline.fourColorPacked;
   }
 
-  Future<void> _configureIsoDepSession(IsoDepAndroid isoDep) async {
+  Future<void> _configureIsoDepSession(X1Iso7816Transport isoDep) async {
     final int timeoutMs = _parseMs(_isoDepTimeoutMsController, 50000);
     if (timeoutMs <= 0) {
       return;
     }
     try {
-      final dynamic dynIsoDep = isoDep;
-      await dynIsoDep.setTimeout(timeoutMs);
-      _appendLog('IsoDep timeout set to ${timeoutMs}ms (APK-style).');
+      await isoDep.configureTimeout(timeoutMs);
+      _appendLog(
+        '${isoDep.platformName} session configured '
+        '(requested timeout ${timeoutMs}ms).',
+      );
     } catch (_) {
       _appendLog(
         'IsoDep timeout API not available in this plugin build; using default timeout.',
@@ -455,9 +458,11 @@ class _UploaderPageState extends State<UploaderPage> {
       pollingOptions: const <NfcPollingOption>{NfcPollingOption.iso14443},
       onDiscovered: (NfcTag tag) async {
         try {
-          final IsoDepAndroid? isoDep = IsoDepAndroid.from(tag);
+          final X1Iso7816Transport? isoDep = X1Iso7816Transport.fromTag(tag);
           if (isoDep == null) {
-            throw StateError('Tag does not expose IsoDep on Android.');
+            throw StateError(
+              'Tag does not expose Android IsoDep or iOS ISO 7816.',
+            );
           }
           await _configureIsoDepSession(isoDep);
 
@@ -1054,7 +1059,7 @@ class _UploaderPageState extends State<UploaderPage> {
   }
 
   Future<bool> _apkExactRefreshPoll(
-    IsoDepAndroid isoDep, {
+    X1Iso7816Transport isoDep, {
     required int refreshIndex,
     required bool firstBranchUsed,
     required bool variantMode85Used,
@@ -1136,7 +1141,7 @@ class _UploaderPageState extends State<UploaderPage> {
   }
 
   Future<bool> _apkExactRefreshTrigger(
-    IsoDepAndroid isoDep, {
+    X1Iso7816Transport isoDep, {
     required int refreshIndex,
     required bool firstBranchUsed,
     required bool variantMode85Used,
@@ -1262,7 +1267,7 @@ class _UploaderPageState extends State<UploaderPage> {
   }
 
   Future<bool> _runApkRefreshWithRetries(
-    IsoDepAndroid isoDep, {
+    X1Iso7816Transport isoDep, {
     required int attempts,
     required int gapMs,
   }) async {
@@ -1313,9 +1318,11 @@ class _UploaderPageState extends State<UploaderPage> {
       pollingOptions: const <NfcPollingOption>{NfcPollingOption.iso14443},
       onDiscovered: (NfcTag tag) async {
         try {
-          final IsoDepAndroid? isoDep = IsoDepAndroid.from(tag);
+          final X1Iso7816Transport? isoDep = X1Iso7816Transport.fromTag(tag);
           if (isoDep == null) {
-            throw StateError('Tag does not expose IsoDep on Android.');
+            throw StateError(
+              'Tag does not expose Android IsoDep or iOS ISO 7816.',
+            );
           }
           await _configureIsoDepSession(isoDep);
 
@@ -1595,9 +1602,11 @@ class _UploaderPageState extends State<UploaderPage> {
             discoveryInProgress = true;
             rediscoveryAttempts++;
             try {
-              final NfcTagAndroid? androidTag = NfcTagAndroid.from(tag);
+              final X1Iso7816Transport? discoveredTransport =
+                  X1Iso7816Transport.fromTag(tag);
               _appendLog(
-                'Tag discovered (attempt $rediscoveryAttempts). Techs: ${androidTag?.techList.join(', ') ?? 'unknown'}',
+                'Tag discovered (attempt $rediscoveryAttempts). '
+                'Tech: ${discoveredTransport?.tagDescription ?? 'unknown'}',
               );
               if (rediscoveryAttempts > 1 && mounted) {
                 _f0StartBlockController.text = '0';
@@ -1875,9 +1884,11 @@ class _UploaderPageState extends State<UploaderPage> {
       pollingOptions: const <NfcPollingOption>{NfcPollingOption.iso14443},
       onDiscovered: (NfcTag tag) async {
         try {
-          final IsoDepAndroid? isoDep = IsoDepAndroid.from(tag);
+          final X1Iso7816Transport? isoDep = X1Iso7816Transport.fromTag(tag);
           if (isoDep == null) {
-            throw StateError('Tag does not expose IsoDep on Android.');
+            throw StateError(
+              'Tag does not expose Android IsoDep or iOS ISO 7816.',
+            );
           }
 
           for (int i = 0; i < initCommands.length; i++) {
@@ -1956,9 +1967,11 @@ class _UploaderPageState extends State<UploaderPage> {
       pollingOptions: const <NfcPollingOption>{NfcPollingOption.iso14443},
       onDiscovered: (NfcTag tag) async {
         try {
-          final IsoDepAndroid? isoDep = IsoDepAndroid.from(tag);
+          final X1Iso7816Transport? isoDep = X1Iso7816Transport.fromTag(tag);
           if (isoDep == null) {
-            throw StateError('Tag does not expose IsoDep on Android.');
+            throw StateError(
+              'Tag does not expose Android IsoDep or iOS ISO 7816.',
+            );
           }
           await _configureIsoDepSession(isoDep);
 
@@ -2060,9 +2073,9 @@ class _UploaderPageState extends State<UploaderPage> {
     bool refreshTriggerOnly = false,
     bool alternateRefreshMode = false,
   }) async {
-    final IsoDepAndroid? isoDep = IsoDepAndroid.from(tag);
+    final X1Iso7816Transport? isoDep = X1Iso7816Transport.fromTag(tag);
     if (isoDep == null) {
-      throw StateError('Tag does not expose IsoDep on Android.');
+      throw StateError('Tag does not expose Android IsoDep or iOS ISO 7816.');
     }
 
     if (_isStrictApkCloneActive()) {
@@ -2391,7 +2404,7 @@ class _UploaderPageState extends State<UploaderPage> {
   }
 
   Future<void> _writeAsIsoDepApkExact(
-    IsoDepAndroid isoDep,
+    X1Iso7816Transport isoDep,
     Uint8List payload, {
     int? resumeBlockOverride,
     bool refreshOnly = false,
@@ -2675,7 +2688,7 @@ class _UploaderPageState extends State<UploaderPage> {
   }
 
   Future<Uint8List> _sendApdu(
-    IsoDepAndroid isoDep,
+    X1Iso7816Transport isoDep,
     Uint8List cmd, {
     required String label,
     bool failOnStatus = true,
