@@ -26,9 +26,13 @@ sudo xcodebuild -license
 xcodebuild -downloadPlatform iOS
 
 flutter doctor -v
+flutter config --enable-swift-package-manager
 ```
 
 Ayusin muna ang anumang error na lalabas sa `flutter doctor`.
+
+Required ang Flutter Swift Package Manager support dahil ang
+`pro_image_editor` dependency ay Swift Package Manager-only sa iOS.
 
 ## 2. Kunin ang repository
 

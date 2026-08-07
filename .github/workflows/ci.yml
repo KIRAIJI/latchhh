@@ -74,6 +74,8 @@ jobs:
           channel: stable
           flutter-version: 3.41.7
           cache: true
+      - name: Enable Flutter Swift Package Manager
+        run: flutter config --enable-swift-package-manager
       - name: Install packages
         run: |
           if ! flutter pub get >flutter-pub-get.log 2>&1; then
