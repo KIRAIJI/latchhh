@@ -91,3 +91,5 @@ jobs:
           fi
       - name: Compile iOS simulator artifact
         run: flutter build ios --simulator --debug
+      - name: Compile unsigned iOS release artifact
+        run: flutter build ios --release --no-codesign

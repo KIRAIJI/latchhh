@@ -265,6 +265,11 @@ flutter test
 
 Ayusin muna ang anumang error bago gumawa ng archive.
 
+Ang GitHub macOS CI ay nagko-compile ng parehong debug simulator build at
+unsigned iOS release build. Nakikita nito ang Xcode, SwiftPM, CocoaPods, at
+release-mode compilation issues bago pa gamitin ang local Mac. Hindi nito
+pinapalitan ang signed physical-device at TestFlight validation.
+
 ## 11. Gumawa ng TestFlight build
 
 Increment ang `version` sa `pubspec.yaml`. Halimbawa:
