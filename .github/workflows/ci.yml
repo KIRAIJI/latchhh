@@ -26,7 +26,13 @@ jobs:
           extensions: mbstring, pdo_sqlite, sqlite3
           coverage: none
       - name: Install backend dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        run: |
+          if ! composer install --no-interaction --prefer-dist --no-progress >composer-install.log 2>&1; then
+            cat composer-install.log
+            message="$(tail -n 30 composer-install.log | tr '\n' ' ')"
+            echo "::error file=.github/workflows/ci.yml,line=25::$message"
+            exit 1
+          fi
       - name: Configure test application
         run: |
           cp .env.example .env
