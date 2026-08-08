@@ -5,7 +5,7 @@
 #include <esp_system.h>
 
 namespace Config {
-constexpr char kFirmwareVersion[] = "1.1.0";
+constexpr char kFirmwareVersion[] = "1.2.0";
 constexpr char kApn[] = "smartlte";
 constexpr char kTrackerUrl[] =
   "http://161.118.252.4:5055/?id=LATCH001";
@@ -128,6 +128,39 @@ const byte kUbxSoftwareBackupPayload[] = {
   // Wake sources: activity on UART RX.
   0x08, 0x00, 0x00, 0x00
 };
+
+// UBX-CFG-NAVX5, message version 2 (u-blox M8 protocol 18+).
+// Apply only the AssistNow Autonomous fields, enable AOP, and retain the
+// receiver firmware's default maximum modeled orbit error.
+const byte kUbxAssistNowAutonomousPayload[] = {
+  0x02, 0x00,              // version
+  0x00, 0x40,              // mask1: apply aopCfg/aopOrbMaxErr only
+  0x00, 0x00, 0x00, 0x00,  // mask2
+  0x00, 0x00,              // reserved1
+  0x00,                    // minSVs
+  0x00,                    // maxSVs
+  0x00,                    // minCNO
+  0x00,                    // reserved2
+  0x00,                    // iniFix3D
+  0x00, 0x00,              // reserved3
+  0x00,                    // ackAiding
+  0x00, 0x00,              // wknRollover
+  0x00,                    // sigAttenCompMode
+  0x00,                    // reserved4
+  0x00, 0x00,              // reserved5
+  0x00, 0x00,              // reserved6
+  0x00,                    // usePPP
+  0x01,                    // aopCfg: useAOP
+  0x00, 0x00,              // reserved7
+  0x00, 0x00,              // aopOrbMaxErr: receiver default
+  0x00, 0x00, 0x00, 0x00,  // reserved8
+  0x00, 0x00, 0x00,        // reserved9
+  0x00                     // useAdr
+};
+static_assert(
+  sizeof(kUbxAssistNowAutonomousPayload) == 40,
+  "UBX-CFG-NAVX5 version 2 payload must be 40 bytes."
+);
 
 const char* resetReasonName() {
   switch (esp_reset_reason()) {
@@ -767,6 +800,16 @@ void configureGps() {
   sendUbx(kUbxRate1Hz, sizeof(kUbxRate1Hz));
   waitWithServices(500);
   sendUbx(kUbxNav5Automotive, sizeof(kUbxNav5Automotive));
+  waitWithServices(500);
+  sendUbxPacket(
+    0x06,
+    0x23,
+    kUbxAssistNowAutonomousPayload,
+    sizeof(kUbxAssistNowAutonomousPayload)
+  );
+  Serial.println(
+    "AssistNow Autonomous requested; learned orbit data will aid later starts."
+  );
   waitWithServices(500);
 }
 

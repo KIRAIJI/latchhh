@@ -34,6 +34,17 @@ failures restart the SIM800 radio stack. GPS input continues to be drained while
 the modem is waiting for AT/HTTP responses so long network operations do not
 make a valid GPS fix stale.
 
+Firmware 1.2.0 enables u-blox AssistNow Autonomous at every GPS startup. The
+NEO-M8N learns orbit data from received satellite ephemerides, keeps it in its
+battery-backed memory, and can use it to reduce time-to-first-fix on later
+starts. It requires no cloud credential, but it must first operate with enough
+sky visibility to learn useful data. It is assistance rather than an indoor
+location replacement; only a fresh, valid GNSS fix is accepted as position.
+
+Online AssistNow and Wi-Fi/cell positioning are intentionally not configured in
+the firmware. Those services require private provider credentials and must be
+proxied by the LATCH backend before they are enabled on production trackers.
+
 The ESP32 brownout detector remains enabled. If the board reboots when the
 SIM800 transmits, fix the power supply, wiring, grounding, and bulk capacitance;
 do not hide an inadequate supply by disabling brownout protection.
@@ -46,6 +57,11 @@ do not hide an inadequate supply by disabling brownout protection.
 4. Open Serial Monitor at 115200 baud.
 5. Confirm `Telemetry accepted by Traccar.`
 6. Wait up to two minutes, then refresh the LATCH item screen.
+
+At boot, firmware 1.2.0 also prints `AssistNow Autonomous requested`. Confirming
+that line proves the configuration packet was sent; improvement in acquisition
+time must be measured over later starts after the receiver has learned orbit
+data outdoors.
 
 Battery percentage is available only when `AT+CBC` on the installed SIM800
 power arrangement returns a value from 0 to 100. If it returns an unsupported
