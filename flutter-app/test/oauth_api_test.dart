@@ -15,7 +15,9 @@ void main() {
         expect(jsonDecode(request.body), {
           'id_token': 'firebase-id-token',
           'accepted_terms': true,
-          'acknowledged_privacy': true,
+        'acknowledged_privacy': true,
+        'device_name': 'Android device',
+        'platform': 'android',
         });
 
         return http.Response(

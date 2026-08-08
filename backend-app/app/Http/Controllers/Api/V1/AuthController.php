@@ -31,6 +31,7 @@ class AuthController extends Controller
         $result = $this->auth->login(
             $request->validated('email'),
             $request->validated('password'),
+            $request->safe()->only(['device_name', 'platform']),
         );
 
         return ApiResponse::success([
@@ -44,7 +45,12 @@ class AuthController extends Controller
     {
         $result = $this->auth->loginWithGoogle(
             $request->validated('id_token'),
-            $request->safe()->only(['accepted_terms', 'acknowledged_privacy']),
+            $request->safe()->only([
+                'accepted_terms',
+                'acknowledged_privacy',
+                'device_name',
+                'platform',
+            ]),
         );
 
         return ApiResponse::success([

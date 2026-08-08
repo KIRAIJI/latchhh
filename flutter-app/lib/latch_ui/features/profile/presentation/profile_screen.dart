@@ -180,33 +180,44 @@ class _ProfilePhotoSection extends StatelessWidget {
           Positioned(
             left: 0,
             bottom: 0,
-            child: ClipOval(
-              child: SizedBox.square(
-                dimension: avatarSize,
-                child: profilePhotoUrl == null
-                    ? ColoredBox(
-                        color: AppColors.surfaceVariant,
-                        child: Center(
-                          child: Text(
-                            _initialsFromDisplayName(displayName),
-                            style: textTheme.headlineSmall,
-                          ),
-                        ),
-                      )
-                    : Image.network(
-                        profilePhotoUrl!,
-                        fit: BoxFit.cover,
-                        semanticLabel: 'Profile avatar for $displayName',
-                        errorBuilder: (_, _, _) => ColoredBox(
-                          color: AppColors.surfaceVariant,
-                          child: Center(
-                            child: Text(
-                              _initialsFromDisplayName(displayName),
-                              style: textTheme.headlineSmall,
+            child: Semantics(
+              button: true,
+              label: 'View or edit profile photo',
+              child: Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onEditPhotoPressed,
+                  customBorder: const CircleBorder(),
+                  child: SizedBox.square(
+                    dimension: avatarSize,
+                    child: profilePhotoUrl == null
+                        ? ColoredBox(
+                            color: AppColors.surfaceVariant,
+                            child: Center(
+                              child: Text(
+                                _initialsFromDisplayName(displayName),
+                                style: textTheme.headlineSmall,
+                              ),
+                            ),
+                          )
+                        : Image.network(
+                            profilePhotoUrl!,
+                            fit: BoxFit.cover,
+                            semanticLabel: 'Profile avatar for $displayName',
+                            errorBuilder: (_, _, _) => ColoredBox(
+                              color: AppColors.surfaceVariant,
+                              child: Center(
+                                child: Text(
+                                  _initialsFromDisplayName(displayName),
+                                  style: textTheme.headlineSmall,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
+                  ),
+                ),
               ),
             ),
           ),

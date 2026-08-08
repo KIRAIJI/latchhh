@@ -24,6 +24,8 @@ class RegisterRequest extends ApiFormRequest
             'password' => PasswordRules::newPassword(),
             'accepted_terms' => ['required', 'accepted'],
             'acknowledged_privacy' => ['required', 'accepted'],
+            'device_name' => ['nullable', 'string', 'max:100'],
+            'platform' => ['nullable', 'string', 'in:android,ios,web,windows,macos,linux'],
             'role' => ['prohibited'],
             'notifications_enabled' => ['prohibited'],
             'profile_photo_path' => ['prohibited'],

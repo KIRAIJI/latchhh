@@ -401,12 +401,22 @@ class LatchController extends ChangeNotifier {
     required String currentPassword,
     required String password,
     required String passwordConfirmation,
-  }) {
-    return api.changePassword(
+  }) async {
+    final revoked = await api.changePassword(
       currentPassword: currentPassword,
       password: password,
       passwordConfirmation: passwordConfirmation,
     );
+    await refreshProfile();
+    return revoked;
+  }
+
+  Future<List<LatchSession>> sessions() => api.sessions();
+
+  Future<bool> revokeSession(int sessionId) async {
+    final wasCurrent = await api.revokeSession(sessionId);
+    if (wasCurrent) await _clearSession();
+    return wasCurrent;
   }
 
   Future<void> updateNotificationSetting(bool enabled) async {

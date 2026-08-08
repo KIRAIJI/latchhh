@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\PushTokenController;
+use App\Http\Controllers\Api\V1\SessionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -35,6 +36,10 @@ Route::prefix('v1')->group(function (): void {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::post('auth/logout-all', [AuthController::class, 'logoutAll']);
+        Route::get('auth/sessions', [SessionController::class, 'index']);
+        Route::delete('auth/sessions/{session}', [SessionController::class, 'destroy'])
+            ->whereNumber('session')
+            ->middleware('throttle:sensitive');
         Route::post(
             'auth/password/setup-link',
             [PasswordResetController::class, 'setupLink'],

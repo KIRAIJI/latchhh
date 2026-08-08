@@ -19,6 +19,8 @@ class LoginRequest extends ApiFormRequest
         return [
             'email' => ['required', 'email', 'max:255'],
             'password' => ['required', 'string', new MaxPasswordBytes],
+            'device_name' => ['nullable', 'string', 'max:100'],
+            'platform' => ['nullable', 'string', 'in:android,ios,web,windows,macos,linux'],
         ];
     }
 }

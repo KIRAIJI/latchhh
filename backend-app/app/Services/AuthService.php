@@ -36,7 +36,7 @@ class AuthService
                 'privacy_acknowledged_at' => now(),
                 'privacy_version' => config('latch.legal.privacy_version'),
             ]);
-            $token = $user->createToken('flutter')->plainTextToken;
+            $token = $this->createSessionToken($user, $data);
             $user->sendEmailVerificationNotification();
 
             return [
@@ -51,7 +51,7 @@ class AuthService
     /**
      * @return array{user: User, token: string}
      */
-    public function login(string $email, string $password): array
+    public function login(string $email, string $password, array $session = []): array
     {
         $userId = User::query()->where('email', $email)->value('id');
 
@@ -59,7 +59,7 @@ class AuthService
             throw $this->invalidCredentials();
         }
 
-        return DB::transaction(function () use ($userId, $password): array {
+        return DB::transaction(function () use ($userId, $password, $session): array {
             $user = User::query()->lockForUpdate()->find($userId);
 
             if (
@@ -70,9 +70,11 @@ class AuthService
                 throw $this->invalidCredentials();
             }
 
+            $token = $this->createSessionToken($user, $session);
+
             return [
                 'user' => $user,
-                'token' => $user->createToken('flutter')->plainTextToken,
+                'token' => $token,
             ];
         });
     }
@@ -93,7 +95,7 @@ class AuthService
 
         $identity = $this->oauthTokens->verifyGoogle($idToken);
 
-        return DB::transaction(function () use ($identity): array {
+        return DB::transaction(function () use ($identity, $data): array {
             $linked = OAuthIdentity::query()
                 ->where('provider', $identity->provider)
                 ->where('provider_subject', $identity->providerSubject)
@@ -104,7 +106,7 @@ class AuthService
                 $user = User::query()->lockForUpdate()->findOrFail($linked->user_id);
                 $this->refreshIdentity($linked, $identity);
 
-                return $this->oauthResult($user, false);
+                return $this->oauthResult($user, false, $data);
             }
 
             $user = User::query()
@@ -152,7 +154,7 @@ class AuthService
                 'last_login_at' => now(),
             ]);
 
-            return $this->oauthResult($user, $isNewUser);
+            return $this->oauthResult($user, $isNewUser, $data);
         }, 3);
     }
 
@@ -238,6 +240,17 @@ class AuthService
         );
     }
 
+    private function createSessionToken(User $user, array $session): string
+    {
+        $created = $user->createToken('flutter');
+        $created->accessToken->forceFill([
+            'device_name' => $session['device_name'] ?? null,
+            'platform' => $session['platform'] ?? null,
+        ])->save();
+
+        return $created->plainTextToken;
+    }
+
     private function refreshIdentity(
         OAuthIdentity $linked,
         OAuthIdentityData $identity,
@@ -259,11 +272,11 @@ class AuthService
     /**
      * @return array{user: User, token: string, is_new_user: bool}
      */
-    private function oauthResult(User $user, bool $isNewUser): array
+    private function oauthResult(User $user, bool $isNewUser, array $session = []): array
     {
         return [
             'user' => $user->refresh(),
-            'token' => $user->createToken('flutter')->plainTextToken,
+            'token' => $this->createSessionToken($user, $session),
             'is_new_user' => $isNewUser,
         ];
     }

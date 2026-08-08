@@ -68,7 +68,10 @@ class ProfileService
                 );
             }
 
-            $locked->forceFill(['password' => Hash::make($newPassword)])->save();
+            $locked->forceFill([
+                'password' => Hash::make($newPassword),
+                'password_set_at' => $locked->password_set_at ?? now(),
+            ])->save();
 
             return $locked->tokens()->whereKeyNot($token->id)->delete();
         });

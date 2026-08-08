@@ -196,6 +196,8 @@ class LatchApi {
           'password_confirmation': passwordConfirmation,
           'accepted_terms': acceptedTerms,
           'acknowledged_privacy': acknowledgedPrivacy,
+          'device_name': _deviceName,
+          'platform': _platformName,
         },
         authenticated: false,
       ),
@@ -214,7 +216,12 @@ class LatchApi {
       await _request(
         'POST',
         'auth/login',
-        body: {'email': email, 'password': password},
+        body: {
+          'email': email,
+          'password': password,
+          'device_name': _deviceName,
+          'platform': _platformName,
+        },
         authenticated: false,
       ),
     );
@@ -233,6 +240,8 @@ class LatchApi {
           'id_token': idToken,
           'accepted_terms': true,
           'acknowledged_privacy': true,
+          'device_name': _deviceName,
+          'platform': _platformName,
         },
         authenticated: false,
       ),
@@ -528,6 +537,16 @@ class LatchApi {
 
   Future<void> deleteAllPushTokens() => _request('DELETE', 'push-tokens/all');
 
+  Future<List<LatchSession>> sessions() async =>
+      _asList(await _request('GET', 'auth/sessions'))
+          .map((value) => LatchSession.fromJson(_asMap(value)))
+          .toList(growable: false);
+
+  Future<bool> revokeSession(int sessionId) async {
+    final data = _asMap(await _request('DELETE', 'auth/sessions/$sessionId'));
+    return data['was_current'] == true;
+  }
+
   Future<LatchUser> uploadProfilePhoto({
     required Uint8List bytes,
     required String filename,
@@ -729,6 +748,28 @@ class LatchApi {
     onUnauthorized = null;
     _client.close();
   }
+
+  String get _platformName => kIsWeb
+      ? 'web'
+      : switch (defaultTargetPlatform) {
+          TargetPlatform.android => 'android',
+          TargetPlatform.iOS => 'ios',
+          TargetPlatform.windows => 'windows',
+          TargetPlatform.macOS => 'macos',
+          TargetPlatform.linux => 'linux',
+          TargetPlatform.fuchsia => 'android',
+        };
+
+  String get _deviceName => kIsWeb
+      ? 'Web browser'
+      : switch (defaultTargetPlatform) {
+          TargetPlatform.android => 'Android device',
+          TargetPlatform.iOS => 'iPhone or iPad',
+          TargetPlatform.windows => 'Windows computer',
+          TargetPlatform.macOS => 'Mac',
+          TargetPlatform.linux => 'Linux computer',
+          TargetPlatform.fuchsia => 'Mobile device',
+        };
 }
 
 Map<String, dynamic> _asMap(dynamic value) {

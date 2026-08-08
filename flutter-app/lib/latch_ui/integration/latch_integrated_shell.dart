@@ -29,10 +29,12 @@ import '../features/notifications/presentation/notifications_screen.dart';
 import '../features/notifications/presentation/notification_details_screen.dart';
 import '../features/notifications/presentation/widgets/notification_card.dart';
 import '../features/profile/presentation/profile_screen.dart';
+import '../features/profile/presentation/profile_photo_crop_screen.dart';
 import '../features/profile/presentation/widgets/edit_profile_bottom_sheet.dart';
 import '../features/profile/presentation/widgets/logout_confirmation_dialog.dart';
 import '../features/profile/presentation/widgets/update_profile_photo_bottom_sheet.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import '../features/settings/presentation/logged_in_devices_screen.dart';
 import '../features/settings/presentation/widgets/change_password_bottom_sheet.dart';
 import '../features/settings/presentation/widgets/delete_account_dialog.dart';
 import 'item_presentation_adapter.dart';
@@ -599,11 +601,18 @@ class _LatchIntegratedShellState extends State<LatchIntegratedShell>
               maxWidth: 1600,
             );
             if (file == null) return;
+            final originalBytes = await file.readAsBytes();
+            if (!mounted) return;
+            final croppedBytes = await ProfilePhotoCropScreen.open(
+              context,
+              imageBytes: originalBytes,
+            );
+            if (croppedBytes == null || !mounted) return;
             _showMessage('Uploading profile photo…');
             try {
               await widget.controller.uploadProfilePhoto(
-                bytes: await file.readAsBytes(),
-                filename: file.name,
+                bytes: croppedBytes,
+                filename: 'profile.jpg',
               );
               if (mounted) {
                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -913,6 +922,16 @@ class _LatchIntegratedShellState extends State<LatchIntegratedShell>
             } on Object catch (error) {
               _showMessage(_errorMessage(error), error: true);
             }
+          },
+          onLoggedInDevicesPressed: () {
+            Navigator.of(routeContext).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => LoggedInDevicesScreen(
+                  controller: widget.controller,
+                  onCurrentDeviceLoggedOut: widget.onSignedOut,
+                ),
+              ),
+            );
           },
           onLogoutAllPressed: () async {
             final confirmed = await showDialog<bool>(

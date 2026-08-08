@@ -28,6 +28,7 @@ class SettingsScreen extends StatefulWidget {
     required this.onTermsPressed,
     required this.onDataSafetyPressed,
     required this.onChangePasswordPressed,
+    required this.onLoggedInDevicesPressed,
     required this.onLogoutAllPressed,
     required this.onDeleteAccountPressed,
     required this.onBackPressed,
@@ -45,6 +46,7 @@ class SettingsScreen extends StatefulWidget {
   final VoidCallback? onTermsPressed;
   final VoidCallback? onDataSafetyPressed;
   final VoidCallback? onChangePasswordPressed;
+  final VoidCallback? onLoggedInDevicesPressed;
   final String passwordActionLabel;
   final VoidCallback? onLogoutAllPressed;
   final VoidCallback? onDeleteAccountPressed;
@@ -59,6 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _notifyGeofenceEvents;
   late bool _notifyBatteryEvents;
   late bool _notifyDeviceStatusEvents;
+  bool _savingPreferences = false;
 
   @override
   void initState() {
@@ -86,6 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     bool? battery,
     bool? deviceStatus,
   }) async {
+    if (_savingPreferences) return;
     final previous = (
       enabled: _notificationsEnabled,
       geofence: _notifyGeofenceEvents,
@@ -93,6 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       deviceStatus: _notifyDeviceStatusEvents,
     );
     setState(() {
+      _savingPreferences = true;
       _notificationsEnabled = enabled ?? _notificationsEnabled;
       _notifyGeofenceEvents = geofence ?? _notifyGeofenceEvents;
       _notifyBatteryEvents = battery ?? _notifyBatteryEvents;
@@ -114,6 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _notifyDeviceStatusEvents = previous.deviceStatus;
       });
     }
+    if (mounted) setState(() => _savingPreferences = false);
   }
 
   @override
@@ -136,7 +142,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: EdgeInsets.zero,
               child: SwitchListTile(
                 value: _notificationsEnabled,
-                onChanged: (value) => _savePreferences(enabled: value),
+                onChanged: _savingPreferences
+                    ? null
+                    : (value) => _savePreferences(enabled: value),
                 title: Text('Enable Notifications', style: textTheme.bodyLarge),
                 subtitle: Text(
                   'Receive alerts for geofence events, battery, and device status.',
@@ -161,7 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   SwitchListTile(
                     value: _notifyGeofenceEvents,
-                    onChanged: !_notificationsEnabled
+                    onChanged: !_notificationsEnabled || _savingPreferences
                         ? null
                         : (value) => _savePreferences(geofence: value),
                     title: const Text('Geofence events'),
@@ -171,7 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(height: 1),
                   SwitchListTile(
                     value: _notifyBatteryEvents,
-                    onChanged: !_notificationsEnabled
+                    onChanged: !_notificationsEnabled || _savingPreferences
                         ? null
                         : (value) => _savePreferences(battery: value),
                     title: const Text('Battery alerts'),
@@ -181,7 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(height: 1),
                   SwitchListTile(
                     value: _notifyDeviceStatusEvents,
-                    onChanged: !_notificationsEnabled
+                    onChanged: !_notificationsEnabled || _savingPreferences
                         ? null
                         : (value) => _savePreferences(deviceStatus: value),
                     title: const Text('Tracker status'),
@@ -260,6 +268,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               variant: LatchButtonVariant.secondary,
               fullWidth: true,
               onPressed: widget.onChangePasswordPressed,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            LatchButton(
+              label: 'View Logged-in Devices',
+              variant: LatchButtonVariant.secondary,
+              fullWidth: true,
+              onPressed: widget.onLoggedInDevicesPressed,
             ),
             const SizedBox(height: AppSpacing.sm),
             LatchButton(

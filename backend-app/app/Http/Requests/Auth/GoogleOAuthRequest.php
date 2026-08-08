@@ -12,6 +12,8 @@ class GoogleOAuthRequest extends ApiFormRequest
             'id_token' => ['required', 'string', 'max:10000'],
             'accepted_terms' => ['required', 'accepted'],
             'acknowledged_privacy' => ['required', 'accepted'],
+            'device_name' => ['nullable', 'string', 'max:100'],
+            'platform' => ['nullable', 'string', 'in:android,ios,web,windows,macos,linux'],
         ];
     }
 }

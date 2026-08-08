@@ -46,6 +46,33 @@ class LatchUser {
   final bool notifyDeviceStatusEvents;
 }
 
+class LatchSession {
+  const LatchSession({
+    required this.id,
+    required this.deviceName,
+    required this.isCurrent,
+    this.platform,
+    this.lastActiveAt,
+    this.createdAt,
+  });
+
+  factory LatchSession.fromJson(Map<String, dynamic> json) => LatchSession(
+    id: _asInt(json['id']) ?? 0,
+    deviceName: json['device_name']?.toString() ?? 'LATCH app',
+    platform: _asNullableString(json['platform']),
+    isCurrent: json['is_current'] == true,
+    lastActiveAt: _asDateTime(json['last_active_at']),
+    createdAt: _asDateTime(json['created_at']),
+  );
+
+  final int id;
+  final String deviceName;
+  final String? platform;
+  final bool isCurrent;
+  final DateTime? lastActiveAt;
+  final DateTime? createdAt;
+}
+
 class LatchItem {
   const LatchItem({
     required this.id,

@@ -324,3 +324,45 @@ it('does not send a setup email when a password already exists', function () {
 
     Notification::assertNothingSent();
 });
+
+it('lists signed-in devices and revokes only the selected session', function () {
+    $user = User::factory()->create([
+        'email' => 'devices@example.com',
+        'password' => Hash::make('Password!123'),
+        'password_set_at' => now(),
+    ]);
+
+    $login = $this->postJson('/api/v1/auth/login', [
+        'email' => 'devices@example.com',
+        'password' => 'Password!123',
+        'device_name' => 'iPhone or iPad',
+        'platform' => 'ios',
+    ])->assertOk();
+    $currentToken = $login->json('data.token');
+    $other = $user->createToken('flutter');
+    $other->accessToken->forceFill([
+        'device_name' => 'Android device',
+        'platform' => 'android',
+    ])->save();
+
+    $sessions = $this->withToken($currentToken)
+        ->getJson('/api/v1/auth/sessions')
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonFragment([
+            'device_name' => 'iPhone or iPad',
+            'platform' => 'ios',
+            'is_current' => true,
+        ]);
+
+    $otherId = collect($sessions->json('data'))
+        ->firstWhere('device_name', 'Android device')['id'];
+
+    $this->withToken($currentToken)
+        ->deleteJson("/api/v1/auth/sessions/{$otherId}")
+        ->assertOk()
+        ->assertJsonPath('data.was_current', false);
+
+    expect($user->tokens()->count())->toBe(1)
+        ->and($user->tokens()->first()->device_name)->toBe('iPhone or iPad');
+});
