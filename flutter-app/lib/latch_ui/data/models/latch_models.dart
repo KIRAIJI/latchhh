@@ -188,6 +188,7 @@ class LatchGeofenceSummary {
     required this.name,
     required this.radiusMeters,
     required this.isActive,
+    this.lastInside,
   });
 
   factory LatchGeofenceSummary.fromJson(Map<String, dynamic> json) {
@@ -196,6 +197,7 @@ class LatchGeofenceSummary {
       name: json['name']?.toString() ?? '',
       radiusMeters: _asDouble(json['radius_meters']) ?? 0,
       isActive: json['is_active'] == true,
+      lastInside: json['last_inside'] as bool?,
     );
   }
 
@@ -203,6 +205,7 @@ class LatchGeofenceSummary {
   final String name;
   final double radiusMeters;
   final bool isActive;
+  final bool? lastInside;
 }
 
 class LatchGeofence {
@@ -215,6 +218,7 @@ class LatchGeofence {
     required this.notifyOnEnter,
     required this.notifyOnExit,
     required this.isActive,
+    this.lastInside,
   });
 
   factory LatchGeofence.fromJson(Map<String, dynamic> json) {
@@ -227,6 +231,7 @@ class LatchGeofence {
       notifyOnEnter: json['notify_on_enter'] == true,
       notifyOnExit: json['notify_on_exit'] == true,
       isActive: json['is_active'] == true,
+      lastInside: json['last_inside'] as bool?,
     );
   }
 
@@ -238,6 +243,7 @@ class LatchGeofence {
   final bool notifyOnEnter;
   final bool notifyOnExit;
   final bool isActive;
+  final bool? lastInside;
 }
 
 class LatchPosition {

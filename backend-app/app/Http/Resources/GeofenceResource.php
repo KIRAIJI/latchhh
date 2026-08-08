@@ -18,6 +18,7 @@ class GeofenceResource extends JsonResource
             'notify_on_enter' => (bool) $this->notify_on_enter,
             'notify_on_exit' => (bool) $this->notify_on_exit,
             'is_active' => (bool) $this->is_active,
+            'last_inside' => $this->last_inside,
             'created_at' => $this->created_at?->utc()->toISOString(),
             'updated_at' => $this->updated_at?->utc()->toISOString(),
         ];

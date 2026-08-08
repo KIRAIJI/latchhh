@@ -260,6 +260,13 @@ void main() {
         'firmware_version': '1.1.0',
         'reset_reason': 'software',
       },
+      'geofence': {
+        'id': 4,
+        'name': 'Angeles University Foundation',
+        'radius_meters': 150,
+        'is_active': true,
+        'last_inside': true,
+      },
     });
     final details = ItemPresentationAdapter.buildItems([
       item,
@@ -278,7 +285,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Current location'), findsOneWidget);
+    expect(
+      find.text('Current location · Angeles University Foundation'),
+      findsOneWidget,
+    );
+    expect(details.geofenceSummaryText, contains('Inside'));
     expect(find.text('Manila City Hall, Ermita, Manila'), findsOneWidget);
     expect(find.text('14.599500, 120.984200'), findsOneWidget);
     expect(find.text('Fully charged'), findsOneWidget);

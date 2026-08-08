@@ -179,19 +179,19 @@ class _AuthUiFlowState extends State<AuthUiFlow> {
       if (!mounted) return;
       setState(() {
         _errorMessage = kDebugMode
-            ? 'Google account verified, but the LATCH server did not respond. '
+            ? 'Google account verified, but LATCH did not respond. '
                   'Start Apache and MySQL, then try again.'
-            : 'Google account verified, but the LATCH server did not respond. '
-                  'Check your connection and try again.';
+            : 'Google account verified. Check your internet connection, then '
+                  'try again.';
       });
     } on http.ClientException {
       if (!mounted) return;
       setState(() {
         _errorMessage = kDebugMode
-            ? 'Google account verified, but the LATCH server is unavailable. '
+            ? 'Google account verified, but LATCH is unavailable. '
                   'Start Apache and MySQL, then try again.'
-            : 'Google account verified, but the LATCH server is unavailable. '
-                  'Check your connection and try again.';
+            : 'Google account verified. Check Wi-Fi or mobile data, then try '
+                  'again.';
       });
     } on Object {
       if (!mounted) return;

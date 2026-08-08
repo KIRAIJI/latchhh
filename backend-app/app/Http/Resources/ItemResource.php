@@ -51,6 +51,7 @@ class ItemResource extends JsonResource
                         'name' => $this->geofence->name,
                         'radius_meters' => (float) $this->geofence->radius_meters,
                         'is_active' => (bool) $this->geofence->is_active,
+                        'last_inside' => $this->geofence->last_inside,
                     ]
                     : null,
                 null,

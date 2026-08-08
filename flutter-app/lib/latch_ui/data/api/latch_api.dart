@@ -650,29 +650,48 @@ class LatchApi {
     final uri = _uri(path, query);
     final headers = _headers(authenticated: authenticated);
     final encodedBody = body == null ? null : jsonEncode(body);
-    final response = switch (method) {
-      'GET' =>
-        await _client
-            .get(uri, headers: headers)
-            .timeout(const Duration(seconds: 20)),
-      'POST' =>
-        await _client
-            .post(uri, headers: headers, body: encodedBody)
-            .timeout(const Duration(seconds: 20)),
-      'PATCH' =>
-        await _client
-            .patch(uri, headers: headers, body: encodedBody)
-            .timeout(const Duration(seconds: 20)),
-      'PUT' =>
-        await _client
-            .put(uri, headers: headers, body: encodedBody)
-            .timeout(const Duration(seconds: 20)),
-      'DELETE' =>
-        await _client
-            .delete(uri, headers: headers, body: encodedBody)
-            .timeout(const Duration(seconds: 20)),
-      _ => throw LatchApiException(message: 'Unsupported HTTP method $method.'),
-    };
+    late final http.Response response;
+    try {
+      response = switch (method) {
+        'GET' =>
+          await _client
+              .get(uri, headers: headers)
+              .timeout(const Duration(seconds: 20)),
+        'POST' =>
+          await _client
+              .post(uri, headers: headers, body: encodedBody)
+              .timeout(const Duration(seconds: 20)),
+        'PATCH' =>
+          await _client
+              .patch(uri, headers: headers, body: encodedBody)
+              .timeout(const Duration(seconds: 20)),
+        'PUT' =>
+          await _client
+              .put(uri, headers: headers, body: encodedBody)
+              .timeout(const Duration(seconds: 20)),
+        'DELETE' =>
+          await _client
+              .delete(uri, headers: headers, body: encodedBody)
+              .timeout(const Duration(seconds: 20)),
+        _ => throw const LatchApiException(
+          message: 'This action is not supported by the app.',
+        ),
+      };
+    } on TimeoutException {
+      throw const LatchApiException(
+        code: 'NETWORK_TIMEOUT',
+        message:
+            'This is taking longer than expected. Check your internet '
+            'connection, then try again.',
+      );
+    } on http.ClientException {
+      throw const LatchApiException(
+        code: 'NETWORK_UNAVAILABLE',
+        message:
+            'No internet connection. Check Wi-Fi or mobile data, then '
+            'try again.',
+      );
+    }
     return _decodeResponse(response, notifyUnauthorized: authenticated);
   }
 
@@ -713,9 +732,18 @@ class LatchApi {
       try {
         payload = _asMap(jsonDecode(response.body));
       } on FormatException {
+        if (response.statusCode >= 500) {
+          throw LatchApiException(
+            statusCode: response.statusCode,
+            code: 'SERVICE_UNAVAILABLE',
+            message:
+                'LATCH is temporarily unavailable. Please try again in '
+                'a few moments.',
+          );
+        }
         throw LatchApiException(
           statusCode: response.statusCode,
-          message: 'The server returned an unreadable response.',
+          message: 'We could not complete that request. Please try again.',
         );
       }
     }

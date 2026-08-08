@@ -56,12 +56,14 @@ it('claims, lists, renames, configures, and releases an item', function () {
             'is_active' => true,
         ])
         ->assertOk()
-        ->assertJsonPath('data.name', 'Home');
+        ->assertJsonPath('data.name', 'Home')
+        ->assertJsonPath('data.last_inside', null);
 
     $this->withToken($token)
         ->getJson("/api/v1/items/{$device->id}")
         ->assertOk()
         ->assertJsonPath('data.geofence.name', 'Home')
+        ->assertJsonPath('data.geofence.last_inside', null)
         ->assertJsonMissingPath('data.geofence.center_latitude')
         ->assertJsonMissingPath('data.geofence.notify_on_enter');
 

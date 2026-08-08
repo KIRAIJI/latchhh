@@ -13,12 +13,16 @@ abstract final class ItemPresentationAdapter {
 
   static ItemCompactCardData _buildItem(LatchItem item) {
     final connection = _connectionPresentation(item.status.connection);
-    final locationLabel = _locationLabel(item.location.type);
+    final geofence = item.geofence;
+    final baseLocationLabel = _locationLabel(item.location.type);
+    final locationLabel =
+        geofence?.isActive == true && geofence?.lastInside == true
+        ? '$baseLocationLabel · ${geofence!.name}'
+        : baseLocationLabel;
     final recordedAt = _formatDate(item.location.recordedAt);
     final battery = item.status.batteryPercentage == null
         ? 'Battery not reported'
         : '${item.status.batteryPercentage}% battery';
-    final geofence = item.geofence;
 
     final details = ItemDetailsData(
       itemId: item.id,
@@ -69,7 +73,11 @@ abstract final class ItemPresentationAdapter {
       geofenceSummaryText: geofence == null
           ? 'Set Geofence'
           : '${geofence.name} · ${geofence.radiusMeters.round()} m'
-                '${geofence.isActive ? '' : ' · Inactive'}',
+                '${!geofence.isActive ? ' · Inactive' : switch (geofence.lastInside) {
+                        true => ' · Inside',
+                        false => ' · Outside',
+                        null => ' · Waiting for location',
+                      }}',
     );
 
     return ItemCompactCardData(
