@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/latch_models.dart';
@@ -196,7 +197,7 @@ class LatchApi {
           'password_confirmation': passwordConfirmation,
           'accepted_terms': acceptedTerms,
           'acknowledged_privacy': acknowledgedPrivacy,
-          'device_name': _deviceName,
+          'device_name': await _deviceName(),
           'platform': _platformName,
         },
         authenticated: false,
@@ -219,7 +220,7 @@ class LatchApi {
         body: {
           'email': email,
           'password': password,
-          'device_name': _deviceName,
+          'device_name': await _deviceName(),
           'platform': _platformName,
         },
         authenticated: false,
@@ -240,7 +241,7 @@ class LatchApi {
           'id_token': idToken,
           'accepted_terms': true,
           'acknowledged_privacy': true,
-          'device_name': _deviceName,
+          'device_name': await _deviceName(),
           'platform': _platformName,
         },
         authenticated: false,
@@ -537,10 +538,16 @@ class LatchApi {
 
   Future<void> deleteAllPushTokens() => _request('DELETE', 'push-tokens/all');
 
-  Future<List<LatchSession>> sessions() async =>
-      _asList(await _request('GET', 'auth/sessions'))
-          .map((value) => LatchSession.fromJson(_asMap(value)))
-          .toList(growable: false);
+  Future<List<LatchSession>> sessions() async {
+    await _request(
+      'PATCH',
+      'auth/sessions/current',
+      body: {'device_name': await _deviceName(), 'platform': _platformName},
+    );
+    return _asList(await _request('GET', 'auth/sessions'))
+        .map((value) => LatchSession.fromJson(_asMap(value)))
+        .toList(growable: false);
+  }
 
   Future<bool> revokeSession(int sessionId) async {
     final data = _asMap(await _request('DELETE', 'auth/sessions/$sessionId'));
@@ -788,16 +795,41 @@ class LatchApi {
           TargetPlatform.fuchsia => 'android',
         };
 
-  String get _deviceName => kIsWeb
-      ? 'Web browser'
-      : switch (defaultTargetPlatform) {
-          TargetPlatform.android => 'Android device',
-          TargetPlatform.iOS => 'iPhone or iPad',
-          TargetPlatform.windows => 'Windows computer',
-          TargetPlatform.macOS => 'Mac',
-          TargetPlatform.linux => 'Linux computer',
-          TargetPlatform.fuchsia => 'Mobile device',
-        };
+  String? _cachedDeviceName;
+
+  Future<String> _deviceName() async {
+    final cached = _cachedDeviceName;
+    if (cached != null) return cached;
+
+    String name;
+    try {
+      name = kIsWeb
+          ? 'Web browser'
+          : switch (defaultTargetPlatform) {
+              TargetPlatform.android || TargetPlatform.iOS =>
+                await const MethodChannel(
+                      'com.latch.mobile/device',
+                    ).invokeMethod<String>('name') ??
+                    'Mobile device',
+              TargetPlatform.windows => 'Windows computer',
+              TargetPlatform.macOS => 'Mac',
+              TargetPlatform.linux => 'Linux computer',
+              TargetPlatform.fuchsia => 'Mobile device',
+            };
+    } on Object {
+      name = switch (defaultTargetPlatform) {
+        TargetPlatform.android => 'Android device',
+        TargetPlatform.iOS => 'iPhone or iPad',
+        TargetPlatform.windows => 'Windows computer',
+        TargetPlatform.macOS => 'Mac',
+        TargetPlatform.linux => 'Linux computer',
+        TargetPlatform.fuchsia => 'Mobile device',
+      };
+    }
+
+    _cachedDeviceName = name.trim().isEmpty ? 'LATCH app' : name.trim();
+    return _cachedDeviceName!;
+  }
 }
 
 Map<String, dynamic> _asMap(dynamic value) {

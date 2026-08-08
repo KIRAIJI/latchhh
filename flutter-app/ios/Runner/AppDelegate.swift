@@ -18,5 +18,18 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LatchDeviceInfo") {
+      FlutterMethodChannel(
+        name: "com.latch.mobile/device",
+        binaryMessenger: registrar.messenger()
+      ).setMethodCallHandler { call, result in
+        guard call.method == "name" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        let deviceName = UIDevice.current.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        result(deviceName.isEmpty ? UIDevice.current.model : deviceName)
+      }
+    }
   }
 }

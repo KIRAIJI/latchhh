@@ -345,12 +345,19 @@ it('lists signed-in devices and revokes only the selected session', function () 
         'platform' => 'android',
     ])->save();
 
+    $this->withToken($currentToken)
+        ->patchJson('/api/v1/auth/sessions/current', [
+            'device_name' => 'Apple iPhone 16 Pro',
+            'platform' => 'ios',
+        ])
+        ->assertOk();
+
     $sessions = $this->withToken($currentToken)
         ->getJson('/api/v1/auth/sessions')
         ->assertOk()
         ->assertJsonCount(2, 'data')
         ->assertJsonFragment([
-            'device_name' => 'iPhone or iPad',
+            'device_name' => 'Apple iPhone 16 Pro',
             'platform' => 'ios',
             'is_current' => true,
         ]);
@@ -364,5 +371,5 @@ it('lists signed-in devices and revokes only the selected session', function () 
         ->assertJsonPath('data.was_current', false);
 
     expect($user->tokens()->count())->toBe(1)
-        ->and($user->tokens()->first()->device_name)->toBe('iPhone or iPad');
+        ->and($user->tokens()->first()->device_name)->toBe('Apple iPhone 16 Pro');
 });

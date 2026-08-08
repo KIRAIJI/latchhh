@@ -9,6 +9,20 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 class SessionController extends Controller
 {
+    public function updateCurrent(Request $request)
+    {
+        $data = $request->validate([
+            'device_name' => ['required', 'string', 'max:100'],
+            'platform' => ['required', 'string', 'in:android,ios,web,windows,macos,linux'],
+        ]);
+
+        $token = $request->user()->currentAccessToken();
+        abort_unless($token instanceof PersonalAccessToken, 401);
+        $token->forceFill($data)->save();
+
+        return ApiResponse::success(null, 'Current device details updated successfully.');
+    }
+
     public function index(Request $request)
     {
         $currentId = $request->user()->currentAccessToken()?->id;

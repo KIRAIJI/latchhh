@@ -37,6 +37,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::post('auth/logout-all', [AuthController::class, 'logoutAll']);
         Route::get('auth/sessions', [SessionController::class, 'index']);
+        Route::patch('auth/sessions/current', [SessionController::class, 'updateCurrent']);
         Route::delete('auth/sessions/{session}', [SessionController::class, 'destroy'])
             ->whereNumber('session')
             ->middleware('throttle:sensitive');
