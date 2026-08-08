@@ -82,11 +82,16 @@ class _EpaperWriteModalState extends State<EpaperWriteModal>
     }
 
     setState(() => _cancelling = true);
-    await widget.bridge.requestCancelWriteTag();
-    if (!mounted) {
-      return;
+    try {
+      await widget.bridge.requestCancelWriteTag().timeout(
+        const Duration(seconds: 3),
+      );
+    } on Object {
+      // Cancellation is best-effort at the platform layer. Closing the modal
+      // must not be held hostage by a stuck NFC driver call.
+    } finally {
+      if (mounted) widget.onClose();
     }
-    widget.onClose();
   }
 
   String get _status => widget.bridge.status;

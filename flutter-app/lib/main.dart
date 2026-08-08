@@ -376,7 +376,14 @@ class _UploaderPageState extends State<UploaderPage> {
     }
     _nfcWriteSessionActive = false;
     try {
-      await NfcManager.instance.stopSession();
+      await NfcManager.instance.stopSession().timeout(
+        const Duration(seconds: 2),
+      );
+    } on TimeoutException {
+      _appendLog(
+        'NFC session stop timed out; continuing with local cancellation.',
+        level: _LogLevel.warning,
+      );
     } catch (_) {
       // The platform may already have closed a lost or cancelled NFC session.
     }
@@ -1468,17 +1475,16 @@ class _UploaderPageState extends State<UploaderPage> {
       return;
     }
     _writeSessionId++;
-    await _stopNfcWriteSession();
-
-    if (!mounted) {
-      return;
-    }
-
     setState(() {
       _busy = false;
       _status = 'Update cancelled.';
     });
     _appendLog('Write cancelled by user.', level: _LogLevel.info);
+    // Do not block the Cancel button on a platform NFC call. Android can keep
+    // stopSession pending while an IsoDep transceive is unwinding. The changed
+    // session ID makes every late callback stale, while cleanup finishes with
+    // its own timeout in the background.
+    unawaited(_stopNfcWriteSession());
   }
 
   Future<void> _writeTag() async {
