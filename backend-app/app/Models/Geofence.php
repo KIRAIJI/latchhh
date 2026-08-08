@@ -21,6 +21,8 @@ class Geofence extends Model
             'notify_on_exit' => 'boolean',
             'is_active' => 'boolean',
             'last_inside' => 'boolean',
+            'pending_inside' => 'boolean',
+            'pending_confirmation_count' => 'integer',
             'last_evaluated_position_id' => 'integer',
             'center_latitude' => 'float',
             'center_longitude' => 'float',

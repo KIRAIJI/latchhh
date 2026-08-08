@@ -113,6 +113,9 @@ class LatchLocation {
     this.latitude,
     this.longitude,
     this.recordedAt,
+    this.source,
+    this.accuracyMeters,
+    this.placeName,
   });
 
   factory LatchLocation.fromJson(Map<String, dynamic> json) {
@@ -121,6 +124,9 @@ class LatchLocation {
       longitude: _asDouble(json['longitude']),
       recordedAt: _asDateTime(json['recorded_at']),
       type: json['type']?.toString() ?? 'unavailable',
+      source: json['source']?.toString(),
+      accuracyMeters: _asDouble(json['accuracy_meters']),
+      placeName: _asNullableString(json['place_name']),
     );
   }
 
@@ -128,6 +134,9 @@ class LatchLocation {
   final double? longitude;
   final DateTime? recordedAt;
   final String type;
+  final String? source;
+  final double? accuracyMeters;
+  final String? placeName;
 
   bool get hasCoordinates => latitude != null && longitude != null;
 }

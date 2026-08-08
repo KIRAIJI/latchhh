@@ -245,6 +245,9 @@ void main() {
         'longitude': 120.9842,
         'recorded_at': '2026-07-20T01:00:00.000000Z',
         'type': 'current',
+        'source': 'wifi',
+        'accuracy_meters': 24.5,
+        'place_name': 'Angeles University Foundation',
       },
       'status': {
         'connection': 'online',
@@ -272,6 +275,10 @@ void main() {
       item,
     ]).single.itemDetails!;
 
+    expect(item.location.source, 'wifi');
+    expect(item.location.accuracyMeters, 24.5);
+    expect(item.location.placeName, 'Angeles University Foundation');
+
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -286,7 +293,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Current location · Angeles University Foundation'),
+      find.text('Estimated current location · Angeles University Foundation'),
       findsOneWidget,
     );
     expect(details.geofenceSummaryText, contains('Inside'));

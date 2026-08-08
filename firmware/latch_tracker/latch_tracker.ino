@@ -1,11 +1,12 @@
 #include <HardwareSerial.h>
 #include <TinyGPS++.h>
 #include <Wire.h>
+#include <WiFi.h>
 #include <esp_sleep.h>
 #include <esp_system.h>
 
 namespace Config {
-constexpr char kFirmwareVersion[] = "1.2.0";
+constexpr char kFirmwareVersion[] = "1.3.0";
 constexpr char kApn[] = "smartlte";
 constexpr char kTrackerUrl[] =
   "http://161.118.252.4:5055/?id=LATCH001";
@@ -20,6 +21,7 @@ constexpr uint32_t kModemStatusIntervalMs = 60000;
 constexpr uint32_t kPowerStatusIntervalMs = 2000;
 constexpr uint32_t kGpsFixMaxAgeMs = 15000;
 constexpr uint32_t kGpsDataTimeoutMs = 10000;
+constexpr uint32_t kWifiScanIntervalMs = 300000;
 constexpr uint32_t kLedBlinkHalfPeriodMs = 500;
 constexpr uint32_t kIdleLightSleepMs = 100;
 constexpr uint32_t kModemWakeSettleMs = 150;
@@ -27,6 +29,7 @@ constexpr uint32_t kChargeModePollMs = 2000;
 constexpr uint32_t kGpsPowerTransitionMs = 250;
 constexpr uint32_t kModemRestartSettleMs = 12000;
 constexpr uint8_t kMaxConsecutiveSendFailures = 3;
+constexpr uint8_t kMaxWifiAccessPoints = 6;
 constexpr bool kBalancedBatteryMode = true;
 constexpr bool kChargeOnlyWhenUsbPowered = true;
 
@@ -80,6 +83,11 @@ struct PowerStatus {
   int batteryMillivolts = -1;
 };
 
+struct WifiObservation {
+  String bssid;
+  int32_t rssi = 0;
+};
+
 HardwareSerial sim800(1);
 HardwareSerial gpsSerial(2);
 TinyGPSPlus gps;
@@ -97,8 +105,12 @@ bool gpsSerialStarted = false;
 bool modemSerialStarted = false;
 bool modemSleeping = false;
 bool modemSleepSupported = true;
+bool wifiScanInProgress = false;
 double lastLatitude = 0;
 double lastLongitude = 0;
+uint32_t nextWifiScanAt = 0;
+uint8_t wifiObservationCount = 0;
+WifiObservation wifiObservations[Config::kMaxWifiAccessPoints];
 
 void enterChargeOnlyMode();
 void requestGpsSoftwareBackup();
@@ -302,8 +314,78 @@ void drainGpsInput() {
   }
 }
 
+void finishWifiScan(int networkCount) {
+  wifiObservationCount = 0;
+
+  for (
+    int networkIndex = 0;
+    networkIndex < networkCount
+      && wifiObservationCount < Config::kMaxWifiAccessPoints;
+    networkIndex++
+  ) {
+    const String bssid = WiFi.BSSIDstr(networkIndex);
+    if (bssid.length() != 17) {
+      continue;
+    }
+
+    wifiObservations[wifiObservationCount].bssid = bssid;
+    wifiObservations[wifiObservationCount].rssi = WiFi.RSSI(networkIndex);
+    wifiObservationCount++;
+  }
+
+  WiFi.scanDelete();
+  WiFi.mode(WIFI_OFF);
+  wifiScanInProgress = false;
+  nextWifiScanAt = millis() + Config::kWifiScanIntervalMs;
+  Serial.printf(
+    "Wi-Fi assistance scan captured %u access point(s).\n",
+    wifiObservationCount
+  );
+}
+
+void serviceWifiScan() {
+  if (!wifiScanInProgress) {
+    return;
+  }
+
+  const int result = WiFi.scanComplete();
+  if (result >= 0) {
+    finishWifiScan(result);
+  } else if (result == WIFI_SCAN_FAILED) {
+    WiFi.scanDelete();
+    WiFi.mode(WIFI_OFF);
+    wifiScanInProgress = false;
+    nextWifiScanAt = millis() + Config::kWifiScanIntervalMs;
+    Serial.println("Wi-Fi assistance scan failed; GNSS remains primary.");
+  }
+}
+
+void startWifiScanIfNeeded() {
+  if (
+    wifiScanInProgress
+    || hasFreshGpsFix()
+    || !timeReached(millis(), nextWifiScanAt)
+  ) {
+    return;
+  }
+
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect(false, true);
+  const int result = WiFi.scanNetworks(true, true);
+  if (result == WIFI_SCAN_FAILED) {
+    WiFi.mode(WIFI_OFF);
+    nextWifiScanAt = millis() + Config::kWifiScanIntervalMs;
+    Serial.println("Could not start Wi-Fi assistance scan.");
+    return;
+  }
+
+  wifiScanInProgress = true;
+  Serial.println("Scanning nearby Wi-Fi for location assistance.");
+}
+
 void serviceRuntime() {
   drainGpsInput();
+  serviceWifiScan();
   updateStatusLeds();
 }
 
@@ -881,6 +963,16 @@ String buildTelemetryUrl(bool hasFix) {
     url += "&bearing=";
     url += String(gps.course.deg(), 2);
   }
+
+  if (!hasFix && wifiObservationCount >= 2) {
+    for (uint8_t index = 0; index < wifiObservationCount; index++) {
+      url += "&wifi=";
+      url += wifiObservations[index].bssid;
+      url += ",";
+      url += String(wifiObservations[index].rssi);
+    }
+    url += "&locationSource=wifi";
+  }
   if (
     isFreshGpsValue(gps.satellites.isValid(), gps.satellites.age())
   ) {
@@ -1055,11 +1147,13 @@ void setup() {
 
   nextModemStatusAt = millis() + Config::kModemStatusIntervalMs;
   nextPowerStatusAt = millis() + Config::kPowerStatusIntervalMs;
+  nextWifiScanAt = millis();
   Serial.println("LATCH tracker is ready.");
 }
 
 void loop() {
   serviceRuntime();
+  startWifiScanIfNeeded();
 
   uint32_t now = millis();
   if (timeReached(now, nextPowerStatusAt)) {

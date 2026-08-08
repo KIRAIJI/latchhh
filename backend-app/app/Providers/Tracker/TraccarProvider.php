@@ -262,6 +262,13 @@ class TraccarProvider implements TrackerProviderInterface
                     'sdio',
                 ],
             ),
+            approximate: ($attributes['approximate'] ?? null) === true,
+            accuracyMeters: $this->floatInRange(
+                $row['accuracy'] ?? null,
+                0,
+                50000,
+            ),
+            wifiAccessPoints: $this->wifiAccessPoints($row['network'] ?? null),
         );
     }
 
@@ -372,5 +379,27 @@ class TraccarProvider implements TrackerProviderInterface
         $csq = $this->intInRange($value, 0, 99);
 
         return $csq !== null && ($csq <= 31 || $csq === 99) ? $csq : null;
+    }
+
+    /** @return list<array{macAddress: string, signalStrength: int}> */
+    private function wifiAccessPoints(mixed $network): array
+    {
+        if (! is_array($network) || ! is_array($network['wifiAccessPoints'] ?? null)) {
+            return [];
+        }
+
+        return collect($network['wifiAccessPoints'])
+            ->filter(fn (mixed $point) => is_array($point)
+                && is_string($point['macAddress'] ?? null)
+                && preg_match('/^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/D', $point['macAddress']) === 1
+                && $this->intInRange($point['signalStrength'] ?? null, -128, -10) !== null)
+            ->map(fn (array $point) => [
+                'macAddress' => strtolower($point['macAddress']),
+                'signalStrength' => $this->intInRange($point['signalStrength'], -128, -10),
+            ])
+            ->unique('macAddress')
+            ->take(12)
+            ->values()
+            ->all();
     }
 }

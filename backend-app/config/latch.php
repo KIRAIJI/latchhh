@@ -69,6 +69,27 @@ return [
     'location_history' => [
         'retention_days' => (int) env('LOCATION_HISTORY_RETENTION_DAYS', 30),
         'max_range_days' => (int) env('LOCATION_HISTORY_MAX_RANGE_DAYS', 7),
+        'max_approximate_accuracy_meters' => (float) env(
+            'LOCATION_MAX_APPROXIMATE_ACCURACY_METERS',
+            1000,
+        ),
+    ],
+
+    'places' => [
+        'enabled' => (bool) env('GOOGLE_PLACES_ENABLED', false),
+        'api_key' => env('GOOGLE_PLACES_API_KEY'),
+        'search_radius_meters' => (float) env('GOOGLE_PLACES_SEARCH_RADIUS_METERS', 150),
+        'connect_timeout_seconds' => (int) env('GOOGLE_PLACES_CONNECT_TIMEOUT_SECONDS', 3),
+        'timeout_seconds' => (int) env('GOOGLE_PLACES_TIMEOUT_SECONDS', 8),
+        'cache_seconds' => (int) env('GOOGLE_PLACES_CACHE_SECONDS', 86400),
+    ],
+
+    'geolocation' => [
+        'enabled' => (bool) env('GOOGLE_GEOLOCATION_ENABLED', false),
+        'api_key' => env('GOOGLE_GEOLOCATION_API_KEY'),
+        'connect_timeout_seconds' => (int) env('GOOGLE_GEOLOCATION_CONNECT_TIMEOUT_SECONDS', 3),
+        'timeout_seconds' => (int) env('GOOGLE_GEOLOCATION_TIMEOUT_SECONDS', 8),
+        'cache_seconds' => (int) env('GOOGLE_GEOLOCATION_CACHE_SECONDS', 300),
     ],
 
     'activity_history' => [

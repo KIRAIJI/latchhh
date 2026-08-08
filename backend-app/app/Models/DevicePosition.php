@@ -20,6 +20,7 @@ class DevicePosition extends Model
             'provider_position_id' => 'integer',
             'latitude' => 'float',
             'longitude' => 'float',
+            'accuracy_meters' => 'float',
             'recorded_at' => 'immutable_datetime',
             'created_at' => 'immutable_datetime',
         ];

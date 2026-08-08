@@ -64,10 +64,14 @@ class GeofenceService
                         $geofence->last_inside = null;
                         $geofence->last_evaluated_position_id = null;
                         $geofence->last_evaluated_at = null;
+                        $geofence->pending_inside = null;
+                        $geofence->pending_confirmation_count = 0;
                     } elseif ($wasActive && ! $geofence->is_active) {
                         $geofence->last_inside = null;
                         $geofence->last_evaluated_position_id = null;
                         $geofence->last_evaluated_at = null;
+                        $geofence->pending_inside = null;
+                        $geofence->pending_confirmation_count = 0;
                     }
 
                     $geofence->save();

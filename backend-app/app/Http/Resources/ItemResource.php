@@ -27,6 +27,11 @@ class ItemResource extends JsonResource
                 'longitude' => $this->last_longitude !== null ? (float) $this->last_longitude : null,
                 'recorded_at' => $this->last_position_at?->utc()->toISOString(),
                 'type' => $locationType->value,
+                'source' => $this->last_location_source,
+                'accuracy_meters' => $this->last_location_accuracy_meters !== null
+                    ? (float) $this->last_location_accuracy_meters
+                    : null,
+                'place_name' => $this->last_place_name,
             ],
             'status' => [
                 'connection' => $connection->value,

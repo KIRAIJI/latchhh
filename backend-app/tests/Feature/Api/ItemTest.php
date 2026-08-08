@@ -32,6 +32,9 @@ it('claims, lists, renames, configures, and releases an item', function () {
         ->assertCreated()
         ->assertJsonPath('data.device_uid', 'LATCH-7K3M-P9Q2')
         ->assertJsonPath('data.location.type', 'unavailable')
+        ->assertJsonPath('data.location.source', null)
+        ->assertJsonPath('data.location.accuracy_meters', null)
+        ->assertJsonPath('data.location.place_name', null)
         ->assertJsonPath('data.status.connection', 'unknown')
         ->assertJsonPath('data.status.telemetry_recorded_at', null);
 

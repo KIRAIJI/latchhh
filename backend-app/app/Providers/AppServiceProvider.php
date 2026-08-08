@@ -129,6 +129,10 @@ class AppServiceProvider extends ServiceProvider
         $low = (int) config('latch.battery.low_percentage');
         $locationRetention = (int) config('latch.location_history.retention_days');
         $locationRange = (int) config('latch.location_history.max_range_days');
+        $maxApproximateAccuracy = (float) config(
+            'latch.location_history.max_approximate_accuracy_meters'
+        );
+        $placesRadius = (float) config('latch.places.search_radius_meters');
         $activityRetention = (int) config('latch.activity_history.retention_days');
         $activityRange = (int) config('latch.activity_history.max_range_days');
         $providerBudget = 2 * (
@@ -161,6 +165,10 @@ class AppServiceProvider extends ServiceProvider
             || $locationRange < 1
             || $locationRange > $locationRetention
             || $locationRetention > 90
+            || $maxApproximateAccuracy < 20
+            || $maxApproximateAccuracy > 5000
+            || $placesRadius < 20
+            || $placesRadius > 500
             || $activityRange < 1
             || $activityRange > $activityRetention
             || $activityRetention > 730
@@ -209,6 +217,10 @@ class AppServiceProvider extends ServiceProvider
             $supportEmail = (string) config('latch.legal.support_email');
             $credentialsPath = (string) config('latch.push.fcm.credentials_path');
             $deepLinkScheme = (string) config('latch.mobile.deep_link_scheme');
+            $placesEnabled = (bool) config('latch.places.enabled');
+            $placesKey = (string) config('latch.places.api_key');
+            $geolocationEnabled = (bool) config('latch.geolocation.enabled');
+            $geolocationKey = (string) config('latch.geolocation.api_key');
 
             if (
                 (bool) config('app.debug')
@@ -227,6 +239,8 @@ class AppServiceProvider extends ServiceProvider
                 || ! filter_var($supportEmail, FILTER_VALIDATE_EMAIL)
                 || str_ends_with(mb_strtolower($supportEmail), '@example.com')
                 || preg_match('/^[a-z][a-z0-9+.-]*$/', $deepLinkScheme) !== 1
+                || ($placesEnabled && $placesKey === '')
+                || ($geolocationEnabled && $geolocationKey === '')
             ) {
                 throw new InvalidArgumentException(
                     'LATCH production security, mail, push, or legal configuration is incomplete.',

@@ -14,11 +14,19 @@ abstract final class ItemPresentationAdapter {
   static ItemCompactCardData _buildItem(LatchItem item) {
     final connection = _connectionPresentation(item.status.connection);
     final geofence = item.geofence;
-    final baseLocationLabel = _locationLabel(item.location.type);
-    final locationLabel =
-        geofence?.isActive == true && geofence?.lastInside == true
-        ? '$baseLocationLabel · ${geofence!.name}'
-        : baseLocationLabel;
+    final baseLocationLabel = item.location.source == 'wifi'
+        ? item.location.type == 'current'
+              ? 'Estimated current location'
+              : 'Estimated last known location'
+        : _locationLabel(item.location.type);
+    final specificPlace =
+        item.location.placeName ??
+        (geofence?.isActive == true && geofence?.lastInside == true
+            ? geofence!.name
+            : null);
+    final locationLabel = specificPlace == null
+        ? baseLocationLabel
+        : '$baseLocationLabel · $specificPlace';
     final recordedAt = _formatDate(item.location.recordedAt);
     final battery = item.status.batteryPercentage == null
         ? 'Battery not reported'
@@ -33,7 +41,10 @@ abstract final class ItemPresentationAdapter {
       connectionColor: connection.color,
       lastCommunicationText: _formatDate(item.status.lastCommunicationAt),
       locationTypeText: locationLabel,
-      locationTimestampText: recordedAt == null ? null : 'Recorded $recordedAt',
+      locationTimestampText: recordedAt == null
+          ? null
+          : 'Recorded $recordedAt'
+                '${item.location.accuracyMeters == null ? '' : ' · Approx. ±${item.location.accuracyMeters!.round()} m'}',
       locationLatitude: item.location.latitude,
       locationLongitude: item.location.longitude,
       locationCoordinatesText: item.location.hasCoordinates

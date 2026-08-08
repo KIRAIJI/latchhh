@@ -51,10 +51,44 @@ class GeofenceEvaluationService
             $position->latitude,
             $position->longitude,
         );
-        $inside = $distance <= (float) $geofence->radius_meters;
+        $radius = (float) $geofence->radius_meters;
+
+        if ($position->approximate) {
+            $accuracy = $position->accuracyMeters;
+            if ($accuracy === null || ($distance + $accuracy > $radius && $distance - $accuracy <= $radius)) {
+                $geofence->pending_inside = null;
+                $geofence->pending_confirmation_count = 0;
+                $geofence->last_evaluated_position_id = $position->providerPositionId;
+                $geofence->last_evaluated_at = $position->recordedAt;
+                $geofence->save();
+
+                return;
+            }
+
+            $inside = $distance + $accuracy <= $radius;
+            $samePendingState = $geofence->pending_inside !== null
+                && $geofence->pending_inside === $inside;
+            $geofence->pending_inside = $inside;
+            $geofence->pending_confirmation_count = $samePendingState
+                ? min(2, $geofence->pending_confirmation_count + 1)
+                : 1;
+
+            if ($geofence->pending_confirmation_count < 2) {
+                $geofence->last_evaluated_position_id = $position->providerPositionId;
+                $geofence->last_evaluated_at = $position->recordedAt;
+                $geofence->save();
+
+                return;
+            }
+        } else {
+            $inside = $distance <= $radius;
+        }
+
         $previous = $geofence->last_inside;
 
         $geofence->last_inside = $inside;
+        $geofence->pending_inside = null;
+        $geofence->pending_confirmation_count = 0;
         $geofence->last_evaluated_position_id = $position->providerPositionId;
         $geofence->last_evaluated_at = $position->recordedAt;
         $geofence->save();

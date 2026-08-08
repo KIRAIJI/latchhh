@@ -30,6 +30,14 @@ it('maps official device and route fields without substituting fixTime', functio
                 'longitude' => 120.6,
                 'fixTime' => '2026-07-26T07:59:00Z',
                 'valid' => true,
+                'accuracy' => 42.5,
+                'network' => [
+                    'wifiAccessPoints' => [
+                        ['macAddress' => 'AA:BB:CC:DD:EE:01', 'signalStrength' => -45],
+                        ['macAddress' => 'AA:BB:CC:DD:EE:02', 'signalStrength' => -60],
+                        ['macAddress' => 'invalid', 'signalStrength' => -20],
+                    ],
+                ],
                 'attributes' => [
                     'batteryLevel' => 18.0,
                     'sat' => 9.0,
@@ -38,6 +46,7 @@ it('maps official device and route fields without substituting fixTime', functio
                     'powerState' => 'charging',
                     'firmware' => '1.1.0',
                     'resetReason' => 'power_on',
+                    'approximate' => true,
                 ],
             ],
             [
@@ -93,7 +102,11 @@ it('maps official device and route fields without substituting fixTime', functio
         ->and($positions[1]->gsmCsq)->toBe(31)
         ->and($positions[1]->powerState)->toBe('charging')
         ->and($positions[1]->firmwareVersion)->toBe('1.1.0')
-        ->and($positions[1]->resetReason)->toBe('power_on');
+        ->and($positions[1]->resetReason)->toBe('power_on')
+        ->and($positions[1]->approximate)->toBeTrue()
+        ->and($positions[1]->accuracyMeters)->toBe(42.5)
+        ->and($positions[1]->wifiAccessPoints)->toHaveCount(2)
+        ->and($positions[1]->wifiAccessPoints[0]['macAddress'])->toBe('aa:bb:cc:dd:ee:01');
 
     Http::assertSent(fn ($request) => $request->hasHeader('Authorization')
         && ! str_contains($request->url(), 'backend-password'));

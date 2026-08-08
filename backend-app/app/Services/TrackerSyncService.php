@@ -21,6 +21,8 @@ class TrackerSyncService
         private readonly TrackerProviderInterface $provider,
         private readonly GeofenceEvaluationService $geofences,
         private readonly DeviceTransitionService $transitions,
+        private readonly PlaceNameResolver $places,
+        private readonly WifiGeolocationResolver $wifiGeolocation,
     ) {}
 
     public function sync(
@@ -54,6 +56,8 @@ class TrackerSyncService
                 $from,
                 $to,
             );
+            $positions = $positions
+                ->map(fn (TrackerPositionData $position) => $this->wifiGeolocation->resolve($position));
             $this->validatePositionMappings($snapshot, $positions);
         } catch (TrackerProviderException $exception) {
             $this->evaluateOfflineOnly($deviceId, $userId, $claimVersion);
@@ -89,6 +93,11 @@ class TrackerSyncService
             $device->last_synced_at = now()->utc();
             $device->save();
         }, 3);
+
+        $freshDevice = Device::query()->find($deviceId);
+        if ($freshDevice) {
+            $this->places->resolveForDevice($freshDevice);
+        }
     }
 
     public function evaluateOfflineOnly(int $deviceId, int $userId, int $claimVersion): void
@@ -168,7 +177,13 @@ class TrackerSyncService
         $hasValidLocation = $timestampAccepted
             && $position->gnssValid === true
             && $position->latitude !== null
-            && $position->longitude !== null;
+            && $position->longitude !== null
+            && (! $position->approximate
+                || ($position->accuracyMeters !== null
+                    && $position->accuracyMeters <= (float) config(
+                        'latch.location_history.max_approximate_accuracy_meters'
+                    )));
+        $locationSource = $position->approximate ? 'wifi' : 'gnss';
 
         if (
             $hasValidLocation
@@ -186,6 +201,8 @@ class TrackerSyncService
                     'user_id' => $user->id,
                     'latitude' => $position->latitude,
                     'longitude' => $position->longitude,
+                    'source' => $locationSource,
+                    'accuracy_meters' => $position->accuracyMeters,
                     'recorded_at' => $position->recordedAt,
                     'created_at' => now()->utc(),
                 ],
@@ -208,7 +225,7 @@ class TrackerSyncService
             $device->last_telemetry_position_id = $position->providerPositionId;
             $device->last_battery_percentage = $position->batteryPercentage;
             $device->last_gnss_status = match ($position->gnssValid) {
-                true => GnssStatus::Fixed,
+                true => $position->approximate ? GnssStatus::NoFix : GnssStatus::Fixed,
                 false => GnssStatus::NoFix,
                 null => GnssStatus::Unknown,
             };
@@ -224,6 +241,10 @@ class TrackerSyncService
         if ($newerLocation) {
             $device->last_latitude = $position->latitude;
             $device->last_longitude = $position->longitude;
+            $device->last_location_source = $locationSource;
+            $device->last_location_accuracy_meters = $position->accuracyMeters;
+            $device->last_place_name = null;
+            $device->last_place_resolved_at = null;
             $device->last_position_at = $position->recordedAt;
             $device->last_provider_position_id = $position->providerPositionId;
 
