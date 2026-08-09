@@ -10,14 +10,14 @@ This sketch preserves the pinout of the existing tracker firmware:
 - ESP32/TTGO T-Call-style board with SIM800
 - SIM800 TX 27, RX 26, PWRKEY 4, POWER_ON 23
 - External u-blox GPS RX 14, TX 13
-- Smart LTE APN `smartlte`
+- Smart/Globe APN fallback (`smartlte`, `internet.globe.com.ph`)
 
 Do not flash this pin mapping to the older XIAO ESP32-C3 Fritzing design without
 rewiring and changing the serial/pin configuration.
 
 ## Telemetry contract
 
-The tracker sends an OsmAnd request every 60 seconds with:
+The tracker sends an OsmAnd request every 15 seconds with:
 
 - `valid`: the official Traccar GNSS-valid flag
 - `lat`, `lon`: fresh or last coordinates; invalid fixes do not replace backend
@@ -41,16 +41,27 @@ starts. It requires no cloud credential, but it must first operate with enough
 sky visibility to learn useful data. It is assistance rather than an indoor
 location replacement; only a fresh, valid GNSS fix is accepted as position.
 
-Online AssistNow and Wi-Fi/cell positioning are intentionally not configured in
-the firmware. Online AssistNow requires a legacy provider credential.
+Online AssistNow is intentionally not configured in the firmware because it
+requires a legacy provider credential.
 
 Firmware 1.3.0 adds an asynchronous, scan-only Wi-Fi location fallback. When
 there is no fresh GNSS fix, the ESP32 periodically records up to six of the
 strongest nearby access points without connecting to them and sends only BSSID
-and signal strength through the existing OsmAnd telemetry path. Traccar resolves
-the scan through its server-side geolocation provider. At least two access
-points are required, scans are rate-limited to five minutes, and GNSS always
-remains the primary source.
+and signal strength through the existing OsmAnd telemetry path. The Laravel
+backend resolves the scan using its server-side geolocation provider. At least
+two access points are required, and GNSS always remains the primary source.
+
+Firmware 1.4.0 sends its first status heartbeat as soon as mobile data is
+available and does not wait for a GNSS fix. Battery, charging state, GSM signal,
+firmware version, reset reason, and online communication can therefore update
+without coordinates. If a Wi-Fi scan finds fewer than two access points, it
+retries after 30 seconds; successful assistance scans retain the normal
+five-minute interval.
+
+Firmware 1.4.0 also tries both Smart and Globe APNs. It starts with the last
+working APN saved in ESP32 non-volatile storage, falls back to the other carrier
+when the bearer cannot open, and remembers the successful choice for later
+boots.
 
 The ESP32 brownout detector remains enabled. If the board reboots when the
 SIM800 transmits, fix the power supply, wiring, grounding, and bulk capacitance;

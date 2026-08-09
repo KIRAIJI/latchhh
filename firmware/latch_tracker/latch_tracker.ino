@@ -1,4 +1,5 @@
 #include <HardwareSerial.h>
+#include <Preferences.h>
 #include <TinyGPS++.h>
 #include <Wire.h>
 #include <WiFi.h>
@@ -6,8 +7,12 @@
 #include <esp_system.h>
 
 namespace Config {
-constexpr char kFirmwareVersion[] = "1.3.0";
-constexpr char kApn[] = "smartlte";
+constexpr char kFirmwareVersion[] = "1.4.0";
+constexpr char kApns[][24] = {
+  "smartlte",
+  "internet.globe.com.ph",
+};
+constexpr uint8_t kApnCount = sizeof(kApns) / sizeof(kApns[0]);
 constexpr char kTrackerUrl[] =
   "http://161.118.252.4:5055/?id=LATCH001";
 
@@ -22,6 +27,7 @@ constexpr uint32_t kPowerStatusIntervalMs = 2000;
 constexpr uint32_t kGpsFixMaxAgeMs = 15000;
 constexpr uint32_t kGpsDataTimeoutMs = 10000;
 constexpr uint32_t kWifiScanIntervalMs = 300000;
+constexpr uint32_t kWifiScanRetryIntervalMs = 30000;
 constexpr uint32_t kLedBlinkHalfPeriodMs = 500;
 constexpr uint32_t kIdleLightSleepMs = 100;
 constexpr uint32_t kModemWakeSettleMs = 150;
@@ -111,6 +117,7 @@ double lastLongitude = 0;
 uint32_t nextWifiScanAt = 0;
 uint8_t wifiObservationCount = 0;
 WifiObservation wifiObservations[Config::kMaxWifiAccessPoints];
+uint8_t preferredApnIndex = 0;
 
 void enterChargeOnlyMode();
 void requestGpsSoftwareBackup();
@@ -336,7 +343,10 @@ void finishWifiScan(int networkCount) {
   WiFi.scanDelete();
   WiFi.mode(WIFI_OFF);
   wifiScanInProgress = false;
-  nextWifiScanAt = millis() + Config::kWifiScanIntervalMs;
+  nextWifiScanAt = millis()
+    + (wifiObservationCount >= 2
+      ? Config::kWifiScanIntervalMs
+      : Config::kWifiScanRetryIntervalMs);
   Serial.printf(
     "Wi-Fi assistance scan captured %u access point(s).\n",
     wifiObservationCount
@@ -355,7 +365,7 @@ void serviceWifiScan() {
     WiFi.scanDelete();
     WiFi.mode(WIFI_OFF);
     wifiScanInProgress = false;
-    nextWifiScanAt = millis() + Config::kWifiScanIntervalMs;
+    nextWifiScanAt = millis() + Config::kWifiScanRetryIntervalMs;
     Serial.println("Wi-Fi assistance scan failed; GNSS remains primary.");
   }
 }
@@ -374,7 +384,7 @@ void startWifiScanIfNeeded() {
   const int result = WiFi.scanNetworks(true, true);
   if (result == WIFI_SCAN_FAILED) {
     WiFi.mode(WIFI_OFF);
-    nextWifiScanAt = millis() + Config::kWifiScanIntervalMs;
+    nextWifiScanAt = millis() + Config::kWifiScanRetryIntervalMs;
     Serial.println("Could not start Wi-Fi assistance scan.");
     return;
   }
@@ -779,6 +789,53 @@ void refreshModemStatus() {
   refreshBearerStatus();
 }
 
+void loadPreferredApn() {
+  Preferences preferences;
+  if (!preferences.begin("latch", true)) {
+    return;
+  }
+  preferredApnIndex = preferences.getUChar("apn", 0);
+  preferences.end();
+  if (preferredApnIndex >= Config::kApnCount) {
+    preferredApnIndex = 0;
+  }
+}
+
+void savePreferredApn(uint8_t apnIndex) {
+  if (apnIndex == preferredApnIndex) {
+    return;
+  }
+
+  Preferences preferences;
+  if (!preferences.begin("latch", false)) {
+    return;
+  }
+  preferences.putUChar("apn", apnIndex);
+  preferences.end();
+  preferredApnIndex = apnIndex;
+}
+
+bool openBearerWithApn(uint8_t apnIndex) {
+  sendAt("AT+SAPBR=0,1", 3000);
+  const String apnCommand =
+    String("AT+SAPBR=3,1,\"APN\",\"")
+    + Config::kApns[apnIndex]
+    + "\"";
+  if (sendAt(apnCommand, 3000).indexOf("OK") < 0) {
+    return false;
+  }
+
+  Serial.printf("Trying mobile-data APN: %s.\n", Config::kApns[apnIndex]);
+  sendAt("AT+SAPBR=1,1", 30000);
+  if (!refreshBearerStatus()) {
+    return false;
+  }
+
+  savePreferredApn(apnIndex);
+  Serial.printf("Mobile data connected using %s.\n", Config::kApns[apnIndex]);
+  return true;
+}
+
 bool ensureBearer() {
   if (!wakeModem()) {
     return false;
@@ -793,7 +850,6 @@ bool ensureBearer() {
     return true;
   }
 
-  sendAt("AT+SAPBR=0,1", 3000);
   if (
     sendAt("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"", 3000)
       .indexOf("OK") < 0
@@ -801,18 +857,20 @@ bool ensureBearer() {
     return false;
   }
 
-  const String apnCommand =
-    String("AT+SAPBR=3,1,\"APN\",\"") + Config::kApn + "\"";
-  if (sendAt(apnCommand, 3000).indexOf("OK") < 0) {
-    return false;
-  }
-
   if (sendAt("AT+CGATT=1", 10000).indexOf("OK") < 0) {
     return false;
   }
 
-  sendAt("AT+SAPBR=1,1", 30000);
-  return refreshBearerStatus();
+  for (uint8_t offset = 0; offset < Config::kApnCount; offset++) {
+    const uint8_t apnIndex =
+      (preferredApnIndex + offset) % Config::kApnCount;
+    if (openBearerWithApn(apnIndex)) {
+      return true;
+    }
+  }
+
+  Serial.println("No configured Smart/Globe APN could open mobile data.");
+  return false;
 }
 
 void sendUbx(const byte* message, size_t length) {
@@ -1108,6 +1166,7 @@ void setup() {
     Config::kFirmwareVersion,
     resetReasonName()
   );
+  loadPreferredApn();
 
   Wire.begin(Config::kPowerSda, Config::kPowerScl, 400000);
   configurePowerManagement();
@@ -1148,6 +1207,19 @@ void setup() {
   nextModemStatusAt = millis() + Config::kModemStatusIntervalMs;
   nextPowerStatusAt = millis() + Config::kPowerStatusIntervalMs;
   nextWifiScanAt = millis();
+  startWifiScanIfNeeded();
+
+  Serial.println(
+    "Sending startup status now; a GNSS fix is not required."
+  );
+  const TelemetryResult startupResult = sendTelemetry();
+  if (startupResult == TelemetryResult::kSent) {
+    consecutiveSendFailures = 0;
+    nextSendAt = millis() + Config::kSendIntervalMs;
+  } else {
+    consecutiveSendFailures = 1;
+    nextSendAt = millis() + Config::kRetryIntervalMs;
+  }
   Serial.println("LATCH tracker is ready.");
 }
 
