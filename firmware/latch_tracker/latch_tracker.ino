@@ -7,10 +7,14 @@
 #include <esp_system.h>
 
 namespace Config {
-constexpr char kFirmwareVersion[] = "1.4.0";
+constexpr char kFirmwareVersion[] = "1.5.1";
 constexpr char kApns[][24] = {
   "smartlte",
   "internet.globe.com.ph",
+  // Common carrier-neutral defaults. Keep the known working entries first;
+  // the successful index is persisted and tried first on later boots.
+  "internet",
+  "",
 };
 constexpr uint8_t kApnCount = sizeof(kApns) / sizeof(kApns[0]);
 constexpr char kTrackerUrl[] =
@@ -869,7 +873,7 @@ bool ensureBearer() {
     }
   }
 
-  Serial.println("No configured Smart/Globe APN could open mobile data.");
+  Serial.println("No configured APN could open mobile data.");
   return false;
 }
 
@@ -948,7 +952,8 @@ void configureGps() {
     sizeof(kUbxAssistNowAutonomousPayload)
   );
   Serial.println(
-    "AssistNow Autonomous requested; learned orbit data will aid later starts."
+    "Token-free AssistNow Autonomous requested; learned orbit data and "
+    "backup state will aid later starts."
   );
   waitWithServices(500);
 }

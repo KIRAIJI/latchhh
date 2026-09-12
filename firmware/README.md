@@ -10,7 +10,8 @@ This sketch preserves the pinout of the existing tracker firmware:
 - ESP32/TTGO T-Call-style board with SIM800
 - SIM800 TX 27, RX 26, PWRKEY 4, POWER_ON 23
 - External u-blox GPS RX 14, TX 13
-- Smart/Globe APN fallback (`smartlte`, `internet.globe.com.ph`)
+- remembered APN fallback (`smartlte`, `internet.globe.com.ph`, `internet`,
+  and the SIM/network default) for SIM800-compatible GSM networks
 
 Do not flash this pin mapping to the older XIAO ESP32-C3 Fritzing design without
 rewiring and changing the serial/pin configuration.
@@ -41,8 +42,15 @@ starts. It requires no cloud credential, but it must first operate with enough
 sky visibility to learn useful data. It is assistance rather than an indoor
 location replacement; only a fresh, valid GNSS fix is accepted as position.
 
-Online AssistNow is intentionally not configured in the firmware because it
-requires a legacy provider credential.
+Firmware 1.5.1 deliberately uses only token-free assistance on the NEO-M8N.
+Legacy AssistNow Online/Offline no longer issues new tokens, while its Live and
+Predictive Orbits replacement does not support M8 receivers. The tracker keeps
+AssistNow Autonomous enabled and preserves the receiver's learned orbit and
+navigation state through battery-backed memory and software backup mode. After
+the receiver has learned useful satellite data outdoors, that local state can
+reduce time-to-first-fix on later starts without a cloud credential. Normal
+GNSS acquisition remains the fallback and assistance never substitutes
+fabricated coordinates.
 
 Firmware 1.3.0 adds an asynchronous, scan-only Wi-Fi location fallback. When
 there is no fresh GNSS fix, the ESP32 periodically records up to six of the
@@ -62,6 +70,9 @@ Firmware 1.4.0 also tries both Smart and Globe APNs. It starts with the last
 working APN saved in ESP32 non-volatile storage, falls back to the other carrier
 when the bearer cannot open, and remembers the successful choice for later
 boots.
+
+The generic APN candidates improve portability but cannot make the 2G-only
+SIM800 operate on LTE-only networks or private APNs requiring credentials.
 
 The ESP32 brownout detector remains enabled. If the board reboots when the
 SIM800 transmits, fix the power supply, wiring, grounding, and bulk capacitance;
