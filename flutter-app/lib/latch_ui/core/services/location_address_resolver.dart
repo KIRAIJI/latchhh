@@ -3,22 +3,49 @@ import 'dart:async';
 import 'package:geocoding/geocoding.dart';
 
 class LocationAddressResolver {
-  LocationAddressResolver({Geocoding? geocoding})
-    : _geocoding = geocoding ?? Geocoding();
+  LocationAddressResolver({Geocoding? geocoding, DateTime Function()? now})
+    : _geocoding = geocoding ?? Geocoding(),
+      _now = now ?? DateTime.now;
 
   static final LocationAddressResolver shared = LocationAddressResolver();
 
   final Geocoding _geocoding;
-  final Map<String, Future<String>> _cache = {};
+  final DateTime Function() _now;
+  final Map<String, ({Future<String> result, DateTime expires})> _cache = {};
   Future<void> _queue = Future<void>.value();
 
   Future<String> resolve(double latitude, double longitude) {
+    if (!latitude.isFinite ||
+        !longitude.isFinite ||
+        latitude.abs() > 90 ||
+        longitude.abs() > 180) {
+      return Future.value('Place name unavailable');
+    }
     final key =
         '${latitude.toStringAsFixed(5)},${longitude.toStringAsFixed(5)}';
-    return _cache.putIfAbsent(
-      key,
-      () => _enqueue(latitude: latitude, longitude: longitude),
+    final now = _now();
+    final cached = _cache[key];
+    if (cached != null && now.isBefore(cached.expires)) return cached.result;
+    _cache.remove(key);
+    if (_cache.length >= 128) _cache.remove(_cache.keys.first);
+    final result = _enqueue(latitude: latitude, longitude: longitude);
+    _cache[key] = (
+      result: result,
+      expires: now.add(const Duration(minutes: 30)),
     );
+    unawaited(
+      result.then((value) {
+        if (value == 'Place name unavailable' &&
+            _cache[key]?.result == result) {
+          // Retry transient failures, without issuing a request on every rebuild.
+          _cache[key] = (
+            result: result,
+            expires: _now().add(const Duration(seconds: 30)),
+          );
+        }
+      }),
+    );
+    return result;
   }
 
   static String formatCoordinates(double latitude, double longitude) {
@@ -50,7 +77,10 @@ class LocationAddressResolver {
     _queue = _queue.then((_) async {
       try {
         completer.complete(
-          await _lookup(latitude: latitude, longitude: longitude),
+          await _lookup(
+            latitude: latitude,
+            longitude: longitude,
+          ).timeout(const Duration(seconds: 6)),
         );
       } on Object {
         completer.complete('Place name unavailable');
@@ -80,9 +110,10 @@ class LocationAddressResolver {
 
   static int _placemarkScore(Placemark placemark) {
     var score = 0;
-    if (_descriptiveName(placemark) != null) score += 100;
-    if (_humanAddressComponent(placemark.thoroughfare) != null) score += 20;
-    if (_humanAddressComponent(placemark.street) != null) score += 10;
+    if (_descriptiveName(placemark) != null) score += 40;
+    if (_humanAddressComponent(placemark.thoroughfare) != null) score += 60;
+    if (_humanAddressComponent(placemark.street) != null) score += 30;
+    if (_normalized(placemark.subThoroughfare) != null) score += 5;
     if (_normalized(placemark.subLocality) != null) score += 4;
     if (_normalized(placemark.locality) != null) score += 4;
     if (_normalized(placemark.subAdministrativeArea) != null) score += 2;
@@ -112,11 +143,17 @@ class LocationAddressResolver {
       }
     }
 
-    add(_descriptiveName(placemark));
-    add(
-      _humanAddressComponent(placemark.thoroughfare) ??
-          _humanAddressComponent(placemark.street),
-    );
+    final road = _humanAddressComponent(placemark.thoroughfare);
+    final number = _normalized(placemark.subThoroughfare);
+    final street = road == null
+        ? _humanAddressComponent(placemark.street)
+        : number == null ||
+              road.toLowerCase().startsWith('${number.toLowerCase()} ')
+        ? road
+        : '$number $road';
+    final name = _descriptiveName(placemark);
+    if (name?.toLowerCase() != street?.toLowerCase()) add(name);
+    add(street);
     add(placemark.subLocality);
     add(placemark.locality);
     add(placemark.subAdministrativeArea);
@@ -141,9 +178,15 @@ class LocationAddressResolver {
       placemark.postalCode,
       placemark.country,
     ].map(_normalized).whereType<String>();
-    if (genericValues.any(
-      (value) => value.toLowerCase() == name.toLowerCase(),
-    )) {
+    final genericComponents = genericValues
+        .expand((value) => value.split(','))
+        .map((value) => value.trim().toLowerCase())
+        .toSet();
+    if (name
+        .split(',')
+        .every(
+          (part) => genericComponents.contains(part.trim().toLowerCase()),
+        )) {
       return null;
     }
 
@@ -152,12 +195,12 @@ class LocationAddressResolver {
 
   static String? _humanAddressComponent(String? value) {
     final normalized = _normalized(value);
-    if (normalized == null ||
-        _plusCode.hasMatch(normalized) ||
-        _postalPrefix.hasMatch(normalized)) {
+    if (normalized == null || _plusCode.hasMatch(normalized)) {
       return null;
     }
-    return RegExp(r'[A-Za-z]').hasMatch(normalized) ? normalized : null;
+    return RegExp(r'\p{L}', unicode: true).hasMatch(normalized)
+        ? normalized
+        : null;
   }
 
   static String? _normalized(String? value) {
@@ -169,5 +212,4 @@ class LocationAddressResolver {
     r'^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}\b',
     caseSensitive: false,
   );
-  static final RegExp _postalPrefix = RegExp(r'^\d{4,6}\b');
 }

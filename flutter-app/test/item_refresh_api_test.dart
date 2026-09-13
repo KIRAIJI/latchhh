@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -8,6 +9,58 @@ import 'package:latch/latch_ui/data/api/latch_api.dart';
 import 'package:latch/latch_ui/data/models/latch_models.dart';
 
 void main() {
+  test(
+    'older background response cannot overwrite a manual tracker refresh',
+    () async {
+      final stale = Completer<http.Response>();
+      final api = LatchApi(
+        baseUrl: 'https://example.test/api/v1',
+        client: MockClient((request) async {
+          if (request.method == 'GET') return stale.future;
+          return http.Response(
+            jsonEncode({
+              'data': _itemJson(
+                latitude: 16,
+                longitude: 121,
+                recordedAt: '2026-09-13T02:00:00Z',
+              ),
+            }),
+            200,
+          );
+        }),
+      )..token = 'test-token';
+      final controller = LatchController(api: api)
+        ..items = [
+          LatchItem.fromJson(
+            _itemJson(
+              latitude: 15,
+              longitude: 120,
+              recordedAt: '2026-09-13T01:00:00Z',
+            ),
+          ),
+        ];
+      addTearDown(controller.dispose);
+      final background = controller.refreshItemsSilently();
+      await controller.refreshItemsFromTracker();
+      stale.complete(
+        http.Response(
+          jsonEncode({
+            'data': [
+              _itemJson(
+                latitude: 15,
+                longitude: 120,
+                recordedAt: '2026-09-13T01:00:00Z',
+              ),
+            ],
+          }),
+          200,
+        ),
+      );
+      await background;
+      expect(controller.items.single.location.latitude, 16);
+      expect(controller.itemsLoading, isFalse);
+    },
+  );
   test('refreshItem immediately requests tracker synchronization', () async {
     late http.Request capturedRequest;
     final api = LatchApi(

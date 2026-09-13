@@ -28,7 +28,6 @@ class EpaperWriteModal extends StatefulWidget {
 class _EpaperWriteModalState extends State<EpaperWriteModal>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulseController;
-  bool _writeStarted = false;
   bool _cancelling = false;
 
   @override
@@ -59,19 +58,14 @@ class _EpaperWriteModalState extends State<EpaperWriteModal>
       return;
     }
 
-    if (widget.bridge.busy) {
-      _writeStarted = true;
-    }
     setState(() {});
   }
 
   Future<void> _beginWrite() async {
+    if (!mounted) return;
     await widget.bridge.requestWriteTag();
     if (!mounted) {
       return;
-    }
-    if (widget.bridge.busy) {
-      _writeStarted = true;
     }
     setState(() {});
   }
@@ -105,14 +99,14 @@ class _EpaperWriteModalState extends State<EpaperWriteModal>
   _EpaperWritePhase _resolvePhase() {
     final lower = _status.toLowerCase();
 
-    if (lower.contains('e-paper updated successfully')) {
+    if (!_isBusy && lower.contains('e-paper updated successfully')) {
       return _EpaperWritePhase.success;
     }
     if (lower.startsWith('update failed') || lower == 'update cancelled.') {
       return _EpaperWritePhase.failure;
     }
 
-    if (!_writeStarted && !_isBusy) {
+    if (!_isBusy) {
       if (lower.contains('turn on nfc') ||
           lower.startsWith('choose an image') ||
           lower.contains('invalid chunk') ||
@@ -150,6 +144,9 @@ class _EpaperWriteModalState extends State<EpaperWriteModal>
 
     return PopScope(
       canPop: _canDismiss,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_cancelWrite());
+      },
       child: Material(
         color: AppColors.surface,
         borderRadius: const BorderRadius.vertical(

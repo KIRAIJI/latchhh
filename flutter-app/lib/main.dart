@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:ndef_record/ndef_record.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:nfc_manager/nfc_manager_android.dart';
+import 'package:nfc_manager/nfc_manager_ios.dart';
 
 import 'latch_ui/core/errors/app_error_reporter.dart';
 import 'latch_ui/core/services/firebase_bootstrap.dart';
@@ -176,7 +177,8 @@ class UploaderPage extends StatefulWidget {
   State<UploaderPage> createState() => _UploaderPageState();
 }
 
-class _UploaderPageState extends State<UploaderPage> {
+class _UploaderPageState extends State<UploaderPage>
+    with WidgetsBindingObserver {
   static const int targetWidth = 240;
   static const int targetHeight = 416;
   static const int tagCapacityBytes = 498;
@@ -282,10 +284,24 @@ class _UploaderPageState extends State<UploaderPage> {
   int _frameHeight = targetHeight;
   int _writeSessionId = 0;
   bool _nfcWriteSessionActive = false;
+  Future<void>? _nfcSessionStop;
+  Future<void>? _nfcSessionStart;
+  Timer? _nfcDiscoveryTimer;
+  static final Object _writeSessionZoneKey = Object();
+
+  bool get _isCurrentWriteContext {
+    final sessionId = Zone.current[_writeSessionZoneKey];
+    return mounted && (sessionId == null || sessionId == _writeSessionId);
+  }
+
+  void _ensureWriteActive() {
+    if (!_isCurrentWriteContext) throw StateError('NFC write cancelled.');
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _registerBridge();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -319,7 +335,7 @@ class _UploaderPageState extends State<UploaderPage> {
       return;
     }
 
-    if (identical(bridge.pickImage, _pickImage)) {
+    if (bridge.pickImage == _pickImage) {
       bridge.pickImage = null;
       bridge.ingestSelectedImageBytes = null;
       bridge.writeTag = null;
@@ -338,12 +354,15 @@ class _UploaderPageState extends State<UploaderPage> {
 
   @override
   void setState(VoidCallback fn) {
+    if (!_isCurrentWriteContext) return;
     super.setState(fn);
     _notifyBridge();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _nfcDiscoveryTimer?.cancel();
     if (_busy) {
       _writeSessionId++;
       unawaited(_stopNfcWriteSession());
@@ -371,21 +390,52 @@ class _UploaderPageState extends State<UploaderPage> {
   }
 
   Future<void> _stopNfcWriteSession() async {
+    _nfcDiscoveryTimer?.cancel();
+    final pendingStop = _nfcSessionStop;
+    if (pendingStop != null) {
+      try {
+        await pendingStop;
+      } on Object {
+        /* The original cleanup logs it. */
+      }
+      return;
+    }
     if (!_nfcWriteSessionActive) {
       return;
     }
     _nfcWriteSessionActive = false;
+    final starting = _nfcSessionStart;
+    final stop = () async {
+      try {
+        await NfcManager.instance.stopSession();
+      } on Object catch (error) {
+        _appendLog('NFC cleanup failed: $error', level: _LogLevel.warning);
+      }
+      if (starting != null) {
+        // A cancelled start can finish after the first stop request.
+        try {
+          await starting;
+        } on Object {
+          // The attempt handles its own start error.
+        }
+        await NfcManager.instance.stopSession();
+      }
+    }();
+    _nfcSessionStop = stop;
     try {
-      await NfcManager.instance.stopSession().timeout(
-        const Duration(seconds: 2),
-      );
-    } on TimeoutException {
-      _appendLog(
-        'NFC session stop timed out; continuing with local cancellation.',
-        level: _LogLevel.warning,
-      );
-    } catch (_) {
-      // The platform may already have closed a lost or cancelled NFC session.
+      await stop;
+    } catch (error) {
+      _appendLog('NFC cleanup failed: $error', level: _LogLevel.warning);
+    } finally {
+      if (identical(_nfcSessionStop, stop)) _nfcSessionStop = null;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(_cancelWriteTag());
     }
   }
 
@@ -394,7 +444,16 @@ class _UploaderPageState extends State<UploaderPage> {
     required bool Function() shouldRestart,
     required Future<void> Function() restart,
   }) async {
-    await _stopNfcWriteSession();
+    try {
+      await _stopNfcWriteSession().timeout(const Duration(seconds: 5));
+    } on Object catch (error) {
+      _failNfcWrite(
+        sessionId,
+        'Update failed. Could not reconnect NFC. Please try again.',
+        error,
+      );
+      return;
+    }
     await Future<void>.delayed(const Duration(milliseconds: 350));
     if (!mounted || sessionId != _writeSessionId || !shouldRestart()) {
       return;
@@ -415,17 +474,20 @@ class _UploaderPageState extends State<UploaderPage> {
   }
 
   Future<void> _configureIsoDepSession(X1Iso7816Transport isoDep) async {
+    _ensureWriteActive();
     final int timeoutMs = _parseMs(_isoDepTimeoutMsController, 50000);
     if (timeoutMs <= 0) {
       return;
     }
     try {
       await isoDep.configureTimeout(timeoutMs);
+      _ensureWriteActive();
       _appendLog(
         '${isoDep.platformName} session configured '
         '(requested timeout ${timeoutMs}ms).',
       );
     } catch (_) {
+      _ensureWriteActive();
       _appendLog(
         'IsoDep timeout API not available in this plugin build; using default timeout.',
         level: _LogLevel.warning,
@@ -1475,15 +1537,14 @@ class _UploaderPageState extends State<UploaderPage> {
       return;
     }
     _writeSessionId++;
+    _nfcDiscoveryTimer?.cancel();
     setState(() {
       _busy = false;
       _status = 'Update cancelled.';
     });
     _appendLog('Write cancelled by user.', level: _LogLevel.info);
-    // Do not block the Cancel button on a platform NFC call. Android can keep
-    // stopSession pending while an IsoDep transceive is unwinding. The changed
-    // session ID makes every late callback stale, while cleanup finishes with
-    // its own timeout in the background.
+    // Release the UI immediately. A new attempt waits for this cleanup before
+    // enabling reader mode, and the old transfer checks its session identity.
     unawaited(_stopNfcWriteSession());
   }
 
@@ -1501,16 +1562,6 @@ class _UploaderPageState extends State<UploaderPage> {
       setState(() {
         _status = 'Choose an image before updating the display.';
       });
-      return;
-    }
-
-    final NfcAvailability availability = await NfcManager.instance
-        .checkAvailability();
-    if (availability != NfcAvailability.enabled) {
-      setState(() {
-        _status = 'Turn on NFC to update the e-paper display.';
-      });
-      _appendLog('NFC unavailable: $availability', level: _LogLevel.error);
       return;
     }
 
@@ -1557,6 +1608,26 @@ class _UploaderPageState extends State<UploaderPage> {
     _appendLog('Mode: ${_mode.name}; payload bytes: ${payload.length}');
 
     final int sessionId = ++_writeSessionId;
+    try {
+      // Wait for cleanup before enabling a new reader session.
+      await _stopNfcWriteSession().timeout(const Duration(seconds: 5));
+      if (!mounted || sessionId != _writeSessionId) return;
+      final availability = await NfcManager.instance
+          .checkAvailability()
+          .timeout(const Duration(seconds: 5));
+      if (!mounted || sessionId != _writeSessionId) return;
+      if (availability != NfcAvailability.enabled) {
+        _failNfcWrite(sessionId, 'Turn on NFC to update the e-paper display.');
+        return;
+      }
+    } on Object catch (error) {
+      _failNfcWrite(
+        sessionId,
+        'Update failed. Could not prepare NFC. Please try again.',
+        error,
+      );
+      return;
+    }
     bool completed = false;
     bool discoveryInProgress = false;
     bool pendingRefreshPollOnly = false;
@@ -1590,10 +1661,31 @@ class _UploaderPageState extends State<UploaderPage> {
       }
       restartScheduled = false;
       _nfcWriteSessionActive = true;
+      _nfcDiscoveryTimer?.cancel();
+      _nfcDiscoveryTimer = Timer(const Duration(seconds: 60), () {
+        _failNfcWrite(
+          sessionId,
+          'Update failed. No NFC connection. Place your phone on the device and try again.',
+        );
+      });
       try {
-        await NfcManager.instance.startSession(
+        final starting = NfcManager.instance.startSession(
           pollingOptions: const <NfcPollingOption>{NfcPollingOption.iso14443},
           noPlatformSoundsAndroid: true,
+          invalidateAfterFirstReadIos: false,
+          onSessionErrorIos: (error) {
+            if (completed || sessionId != _writeSessionId) return;
+            completed = true;
+            _failNfcWrite(
+              sessionId,
+              error.code ==
+                      NfcReaderErrorCodeIos
+                          .readerSessionInvalidationErrorUserCanceled
+                  ? 'Update cancelled.'
+                  : 'Update failed. NFC session ended. Please try again.',
+              error,
+            );
+          },
           onDiscovered: (NfcTag tag) async {
             if (sessionId != _writeSessionId ||
                 completed ||
@@ -1606,6 +1698,7 @@ class _UploaderPageState extends State<UploaderPage> {
             }
 
             discoveryInProgress = true;
+            _nfcDiscoveryTimer?.cancel();
             rediscoveryAttempts++;
             try {
               final X1Iso7816Transport? discoveredTransport =
@@ -1635,18 +1728,20 @@ class _UploaderPageState extends State<UploaderPage> {
                   level: _LogLevel.info,
                 );
               }
-              if (_mode == NfcWriteMode.ndef) {
-                await _writeAsNdef(tag, payload);
-              } else {
-                await _writeAsIsoDep(
-                  tag,
-                  payload,
-                  isResume: false,
-                  refreshOnly: pendingRefreshPollOnly,
-                  refreshTriggerOnly: pendingRefreshTriggerOnly,
-                  alternateRefreshMode: rediscoveryAttempts >= 3,
-                );
-              }
+              await runZoned(() async {
+                if (_mode == NfcWriteMode.ndef) {
+                  await _writeAsNdef(tag, payload);
+                } else {
+                  await _writeAsIsoDep(
+                    tag,
+                    payload,
+                    isResume: false,
+                    refreshOnly: pendingRefreshPollOnly,
+                    refreshTriggerOnly: pendingRefreshTriggerOnly,
+                    alternateRefreshMode: rediscoveryAttempts >= 3,
+                  );
+                }
+              }, zoneValues: {_writeSessionZoneKey: sessionId});
 
               if (sessionId != _writeSessionId) {
                 return;
@@ -1654,7 +1749,10 @@ class _UploaderPageState extends State<UploaderPage> {
               completed = true;
               pendingRefreshPollOnly = false;
               pendingRefreshTriggerOnly = false;
-              await _stopNfcWriteSession();
+              await _stopNfcWriteSession().timeout(
+                const Duration(seconds: 3),
+                onTimeout: () {},
+              );
               if (!mounted || sessionId != _writeSessionId) {
                 return;
               }
@@ -1812,15 +1910,12 @@ class _UploaderPageState extends State<UploaderPage> {
                 );
               }
 
-              await _stopNfcWriteSession();
-              if (!mounted || sessionId != _writeSessionId) {
-                return;
-              }
-              setState(() {
-                _busy = false;
-                _status = 'Update failed. ${_friendlyEpaperError(e)}';
-              });
-              _appendLog('Write failed: $e', level: _LogLevel.error);
+              completed = true;
+              _failNfcWrite(
+                sessionId,
+                'Update failed. ${_friendlyEpaperError(e)}',
+                e,
+              );
             } finally {
               if (mounted && sessionId == _writeSessionId) {
                 _appendLog(
@@ -1831,28 +1926,42 @@ class _UploaderPageState extends State<UploaderPage> {
             }
           },
         );
+        _nfcSessionStart = starting;
+        try {
+          await starting;
+        } finally {
+          if (identical(_nfcSessionStart, starting)) _nfcSessionStart = null;
+        }
       } catch (e) {
         if (sessionId != _writeSessionId) {
           return;
         }
         completed = true;
-        await _stopNfcWriteSession();
-        if (!mounted || sessionId != _writeSessionId) {
-          return;
-        }
-        setState(() {
-          _busy = false;
-          _status =
-              'Update failed. Could not start NFC. Make sure NFC is turned on, '
-              'then try again.';
-        });
-        _appendLog('Unable to start NFC write: $e', level: _LogLevel.error);
+        _failNfcWrite(
+          sessionId,
+          'Update failed. Could not start NFC. Make sure NFC is turned on, then try again.',
+          e,
+        );
       }
     };
 
     await startAttempt();
 
     // Keep _busy controlled by success/failure branches in the session callback.
+  }
+
+  void _failNfcWrite(int sessionId, String message, [Object? error]) {
+    if (!mounted || sessionId != _writeSessionId) return;
+    _writeSessionId++;
+    _nfcDiscoveryTimer?.cancel();
+    setState(() {
+      _busy = false;
+      _status = message;
+    });
+    if (error != null) {
+      _appendLog('NFC write ended: $error', level: _LogLevel.error);
+    }
+    unawaited(_stopNfcWriteSession());
   }
 
   Future<void> _sendFinalCommandsOnly() async {
@@ -2700,6 +2809,7 @@ class _UploaderPageState extends State<UploaderPage> {
     bool failOnStatus = true,
     Set<int> acceptedStatusWords = const <int>{0x9000, 0x9100},
   }) async {
+    _ensureWriteActive();
     _appendLog('APDU -> $label | ${cmd.length}B | ${_hex(cmd, maxBytes: 24)}');
     Uint8List response;
     int transceiveRetries = 0;
@@ -2724,8 +2834,10 @@ class _UploaderPageState extends State<UploaderPage> {
         ? 0
         : 8;
     while (true) {
+      _ensureWriteActive();
       try {
         response = await isoDep.transceive(cmd);
+        _ensureWriteActive();
         break;
       } on Exception catch (e) {
         final String errText = e.toString();
@@ -2784,6 +2896,7 @@ class _UploaderPageState extends State<UploaderPage> {
         await _configureIsoDepSession(isoDep);
         try {
           response = await isoDep.transceive(cmd);
+          _ensureWriteActive();
           continue;
         } on Exception catch (e) {
           final String errText = e.toString();

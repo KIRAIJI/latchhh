@@ -52,6 +52,11 @@ reduce time-to-first-fix on later starts without a cloud credential. Normal
 GNSS acquisition remains the fallback and assistance never substitutes
 fabricated coordinates.
 
+Firmware 1.5.2 builds the NEO-M8N automotive navigation configuration with the
+same checksum-producing UBX helper used by other generated packets. This keeps
+the packet checksum synchronized with its 36-byte payload so the receiver can
+accept the configuration.
+
 Firmware 1.3.0 adds an asynchronous, scan-only Wi-Fi location fallback. When
 there is no fresh GNSS fix, the ESP32 periodically records up to six of the
 strongest nearby access points without connecting to them and sends only BSSID

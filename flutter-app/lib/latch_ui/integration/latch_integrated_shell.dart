@@ -466,26 +466,39 @@ class _LatchIntegratedShellState extends State<LatchIntegratedShell>
           ),
           child: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: maxHeight),
-            child: ItemDetailsBottomSheet.fromData(
-              details,
-              onRenamePressed: () {
-                final item = _itemById(details.itemId);
-                if (item != null) closeAndRun(() => _showRenameItemModal(item));
-              },
-              onManageGeofencePressed: () {
-                final item = _itemById(details.itemId);
-                if (item != null) closeAndRun(() => _openGeofenceScreen(item));
-              },
-              onViewHistoryPressed: () {
-                final item = _itemById(details.itemId);
-                if (item != null) closeAndRun(() => _openHistory(item));
-              },
-              onRemovePressed: () {
-                final item = _itemById(details.itemId);
-                if (item != null) {
-                  closeAndRun(() => _showRemoveDeviceDialog(item));
-                }
-              },
+            child: ListenableBuilder(
+              listenable: widget.controller,
+              builder: (context, _) => ItemDetailsBottomSheet.fromData(
+                ItemPresentationAdapter.buildItems(widget.controller.items)
+                        .where(
+                          (item) => item.itemDetails?.itemId == details.itemId,
+                        )
+                        .firstOrNull
+                        ?.itemDetails ??
+                    details,
+                onRenamePressed: () {
+                  final item = _itemById(details.itemId);
+                  if (item != null) {
+                    closeAndRun(() => _showRenameItemModal(item));
+                  }
+                },
+                onManageGeofencePressed: () {
+                  final item = _itemById(details.itemId);
+                  if (item != null) {
+                    closeAndRun(() => _openGeofenceScreen(item));
+                  }
+                },
+                onViewHistoryPressed: () {
+                  final item = _itemById(details.itemId);
+                  if (item != null) closeAndRun(() => _openHistory(item));
+                },
+                onRemovePressed: () {
+                  final item = _itemById(details.itemId);
+                  if (item != null) {
+                    closeAndRun(() => _showRemoveDeviceDialog(item));
+                  }
+                },
+              ),
             ),
           ),
         );

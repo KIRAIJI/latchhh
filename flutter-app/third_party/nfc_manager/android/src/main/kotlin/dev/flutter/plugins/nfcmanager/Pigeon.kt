@@ -1079,6 +1079,8 @@ interface HostApiPigeon {
       // ISO-DEP I/O can block for the full 50-second timeout. Keep it on one
       // serial background queue, matching the vendor updater's worker thread.
       val isoDepTaskQueue = binaryMessenger.makeBackgroundTaskQueue()
+      // Close must be able to interrupt I/O; never put it behind transceive.
+      val cleanupTaskQueue = binaryMessenger.makeBackgroundTaskQueue()
       run {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.nfcAdapterIsEnabled$separatedMessageChannelSuffix", codec)
         if (api != null) {
@@ -1143,7 +1145,7 @@ interface HostApiPigeon {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.nfcAdapterDisableReaderMode$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.nfcAdapterDisableReaderMode$separatedMessageChannelSuffix", codec, cleanupTaskQueue)
         if (api != null) {
           channel.setMessageHandler { _, reply ->
             val wrapped: List<Any?> = try {
@@ -1176,7 +1178,7 @@ interface HostApiPigeon {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.ndefWriteNdefMessage$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.ndefWriteNdefMessage$separatedMessageChannelSuffix", codec, isoDepTaskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
@@ -1424,7 +1426,7 @@ interface HostApiPigeon {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.isoDepGetMaxTransceiveLength$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.isoDepGetMaxTransceiveLength$separatedMessageChannelSuffix", codec, isoDepTaskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
@@ -1441,7 +1443,7 @@ interface HostApiPigeon {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.isoDepGetTimeout$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.isoDepGetTimeout$separatedMessageChannelSuffix", codec, isoDepTaskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
@@ -1458,7 +1460,7 @@ interface HostApiPigeon {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.isoDepSetTimeout$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.nfc_manager.HostApiPigeon.isoDepSetTimeout$separatedMessageChannelSuffix", codec, isoDepTaskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>

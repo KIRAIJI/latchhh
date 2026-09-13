@@ -184,7 +184,7 @@ void main() {
     expect(card.itemDetails?.locationLongitude, 120.9842);
     expect(
       card.itemDetails?.gnssStatusText,
-      'GPS fix available (last reported)',
+      'Location available (last reported)',
     );
     expect(card.itemDetails?.satellitesText, '8 satellites visible');
     expect(card.itemDetails?.gnssTimestampText, startsWith('Reported '));
@@ -233,80 +233,77 @@ void main() {
     },
   );
 
-  testWidgets('item details show place name and copyable coordinates', (
-    tester,
-  ) async {
-    final item = LatchItem.fromJson({
-      'id': 9,
-      'device_uid': 'LATCH-CD34-EF56',
-      'item_name': 'Bag',
-      'location': {
-        'latitude': 14.5995,
-        'longitude': 120.9842,
-        'recorded_at': '2026-07-20T01:00:00.000000Z',
-        'type': 'current',
-        'source': 'wifi',
-        'accuracy_meters': 24.5,
-        'place_name': 'Angeles University Foundation',
-      },
-      'status': {
-        'connection': 'online',
-        'last_communication_at': '2026-07-20T01:00:00.000000Z',
-        'battery_percentage': 80,
-        'battery_status': 'normal',
-        'gnss_status': 'fixed',
-        'satellites': 9,
-        'hdop': 0.9,
-        'gsm_csq': 18,
-        'gsm_signal_level': 'good',
-        'power_state': 'full',
-        'firmware_version': '1.1.0',
-        'reset_reason': 'software',
-      },
-      'geofence': {
-        'id': 4,
-        'name': 'Angeles University Foundation',
-        'radius_meters': 150,
-        'is_active': true,
-        'last_inside': true,
-      },
-    });
-    final details = ItemPresentationAdapter.buildItems([
-      item,
-    ]).single.itemDetails!;
+  testWidgets(
+    'item details show a useful place without technical coordinates',
+    (tester) async {
+      final item = LatchItem.fromJson({
+        'id': 9,
+        'device_uid': 'LATCH-CD34-EF56',
+        'item_name': 'Bag',
+        'location': {
+          'latitude': 14.5995,
+          'longitude': 120.9842,
+          'recorded_at': '2026-07-20T01:00:00.000000Z',
+          'type': 'current',
+          'source': 'wifi',
+          'accuracy_meters': 24.5,
+          'place_name': 'Angeles University Foundation',
+        },
+        'status': {
+          'connection': 'online',
+          'last_communication_at': '2026-07-20T01:00:00.000000Z',
+          'battery_percentage': 80,
+          'battery_status': 'normal',
+          'gnss_status': 'fixed',
+          'satellites': 9,
+          'hdop': 0.9,
+          'gsm_csq': 18,
+          'gsm_signal_level': 'good',
+          'power_state': 'full',
+          'firmware_version': '1.1.0',
+          'reset_reason': 'software',
+        },
+        'geofence': {
+          'id': 4,
+          'name': 'Angeles University Foundation',
+          'radius_meters': 150,
+          'is_active': true,
+          'last_inside': true,
+        },
+      });
+      final details = ItemPresentationAdapter.buildItems([
+        item,
+      ]).single.itemDetails!;
 
-    expect(item.location.source, 'wifi');
-    expect(item.location.accuracyMeters, 24.5);
-    expect(item.location.placeName, 'Angeles University Foundation');
+      expect(item.location.source, 'wifi');
+      expect(item.location.accuracyMeters, 24.5);
+      expect(item.location.placeName, 'Angeles University Foundation');
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ItemDetailsBottomSheet.fromData(
-            details,
-            locationAddressLookup: (_, _) async =>
-                'Manila City Hall, Ermita, Manila',
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ItemDetailsBottomSheet.fromData(
+              details,
+              locationAddressLookup: (_, _) async =>
+                  'Manila City Hall, Ermita, Manila',
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(
-      find.text('Estimated current location · Angeles University Foundation'),
-      findsOneWidget,
-    );
-    expect(details.geofenceSummaryText, contains('Inside'));
-    expect(find.text('Manila City Hall, Ermita, Manila'), findsOneWidget);
-    expect(find.text('14.599500, 120.984200'), findsOneWidget);
-    expect(find.text('Fully charged'), findsOneWidget);
-    expect(find.text('Version 1.1.0'), findsOneWidget);
-    expect(find.text('Last restart: Software restart'), findsOneWidget);
-    expect(
-      tester.widget<SelectableText>(
-        find.widgetWithText(SelectableText, '14.599500, 120.984200'),
-      ),
-      isA<SelectableText>(),
-    );
-  });
+      expect(
+        find.text('Estimated current location · Angeles University Foundation'),
+        findsOneWidget,
+      );
+      expect(details.geofenceSummaryText, contains('Inside'));
+      expect(find.text('Manila City Hall, Ermita, Manila'), findsOneWidget);
+      expect(find.text('14.599500, 120.984200'), findsNothing);
+      expect(find.text('Fully charged'), findsOneWidget);
+      expect(find.text('Version 1.1.0'), findsOneWidget);
+      expect(find.text('Last restart: Software restart'), findsOneWidget);
+      expect(find.text('9 satellites visible'), findsNothing);
+      expect(find.text('HDOP 0.9'), findsNothing);
+    },
+  );
 }

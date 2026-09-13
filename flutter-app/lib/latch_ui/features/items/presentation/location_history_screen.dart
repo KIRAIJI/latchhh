@@ -268,6 +268,7 @@ class _LocationHistoryScreenState extends State<LocationHistoryScreen> {
                 leading: const Icon(Icons.location_on_outlined),
                 title: Text(_formatTime(position.recordedAt)),
                 subtitle: FutureBuilder<String>(
+                  key: ValueKey('${position.latitude},${position.longitude}'),
                   future: _addressResolver.resolve(
                     position.latitude,
                     position.longitude,

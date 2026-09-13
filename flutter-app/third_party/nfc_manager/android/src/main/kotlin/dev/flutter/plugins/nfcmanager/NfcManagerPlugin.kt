@@ -28,14 +28,18 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 class NfcManagerPlugin: FlutterPlugin, ActivityAware, HostApiPigeon, BroadcastReceiver() {
   private lateinit var flutterApi: FlutterApiPigeon
   private lateinit var activity: Activity
   private var adapter: NfcAdapter? = null
-  private var cachedTags: MutableMap<String, Tag> = mutableMapOf()
-  private var connectedTech: TagTechnology? = null
-  private var connectedHandle: String? = null
+  private val cachedTags = ConcurrentHashMap<String, Tag>()
+  private val connectionLock = Any()
+  @Volatile private var readerGeneration = 0
+  @Volatile private var readerActive = false
+  @Volatile private var connectedTech: TagTechnology? = null
+  @Volatile private var connectedHandle: String? = null
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     HostApiPigeon.setUp(flutterPluginBinding.binaryMessenger, this)
@@ -100,19 +104,30 @@ class NfcManagerPlugin: FlutterPlugin, ActivityAware, HostApiPigeon, BroadcastRe
     val extras = Bundle().apply {
       putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250)
     }
-    getAdapter().enableReaderMode(activity, { onTagDiscovered(it) }, toInt(flags), extras)
+    val generation = synchronized(connectionLock) {
+      readerActive = true
+      ++readerGeneration
+    }
+    getAdapter().enableReaderMode(activity, { onTagDiscovered(it, generation) }, toInt(flags), extras)
   }
 
   override fun nfcAdapterDisableReaderMode() {
-    getAdapter().disableReaderMode(activity)
+    val tech = synchronized(connectionLock) {
+      readerActive = false
+      readerGeneration++
+      val previous = connectedTech
+      connectedTech = null
+      connectedHandle = null
+      cachedTags.clear()
+      previous
+    }
     try {
-      connectedTech?.close()
+      // Runs on the cleanup queue, independently of blocked connect/transceive.
+      tech?.close()
     } catch (_: Exception) {
       // The tag may already be out of range.
     }
-    connectedTech = null
-    connectedHandle = null
-    cachedTags.clear()
+    getAdapter().disableReaderMode(activity)
   }
 
   override fun ndefGetNdefMessage(handle: String): NdefMessagePigeon? {
@@ -326,11 +341,18 @@ class NfcManagerPlugin: FlutterPlugin, ActivityAware, HostApiPigeon, BroadcastRe
     tech.formatReadOnly(toNdefMessage(firstMessage))
   }
 
-  private fun onTagDiscovered(tag: Tag) {
+  private fun onTagDiscovered(tag: Tag, generation: Int) {
     val handle = UUID.randomUUID().toString()
     val pigeonTag = toTagPigeon(tag, handle)
-    cachedTags[handle] = tag
-    activity.runOnUiThread { flutterApi.onTagDiscovered(pigeonTag) { /* no op */ } }
+    synchronized(connectionLock) {
+      if (!readerActive || generation != readerGeneration) return
+      cachedTags[handle] = tag
+    }
+    activity.runOnUiThread {
+      if (readerActive && generation == readerGeneration) {
+        flutterApi.onTagDiscovered(pigeonTag) { /* no op */ }
+      }
+    }
   }
 
   private fun getAdapter(): NfcAdapter {
@@ -338,13 +360,14 @@ class NfcManagerPlugin: FlutterPlugin, ActivityAware, HostApiPigeon, BroadcastRe
   }
 
   private inline fun <reified T: TagTechnology> forceConnect(handle: String, getMethod: (Tag) -> T?): T {
+    val generation = readerGeneration
     val tag = cachedTags[handle] ?: run {
       throw FlutterError("tag_not_found", "You may have disable the session.", null)
     }
     val tech = getMethod(tag) ?: run {
       throw FlutterError("tag_not_found", "The tag cannot be converted to ${T::class.java.name}.", null)
     }
-    val activeTech = connectedTech
+    val activeTech = synchronized(connectionLock) { connectedTech }
     if (
       connectedHandle == handle &&
       activeTech != null &&
@@ -360,9 +383,27 @@ class NfcManagerPlugin: FlutterPlugin, ActivityAware, HostApiPigeon, BroadcastRe
     } catch (_: Exception) {
       // The previous tag may already be out of range.
     }
-    tech.connect()
-    connectedTech = tech
-    connectedHandle = handle
+    synchronized(connectionLock) {
+      if (!readerActive || generation != readerGeneration || !cachedTags.containsKey(handle)) {
+        throw FlutterError("tag_not_found", "The NFC session has ended.", null)
+      }
+      // Publish before connect so cancellation can close a blocked connection.
+      connectedTech = tech
+      connectedHandle = handle
+    }
+    try {
+      tech.connect()
+      if (!readerActive || generation != readerGeneration) {
+        tech.close()
+        throw FlutterError("tag_not_found", "The NFC session has ended.", null)
+      }
+    } catch (error: Exception) {
+      synchronized(connectionLock) {
+        if (connectedTech === tech) { connectedTech = null; connectedHandle = null }
+      }
+      try { tech.close() } catch (_: Exception) { }
+      throw error
+    }
     return tech
   }
 }

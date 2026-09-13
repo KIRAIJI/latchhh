@@ -169,8 +169,8 @@ abstract final class ItemPresentationAdapter {
 
   static String _gnssStatusLabel(String status, String connection) {
     final label = switch (status) {
-      'fixed' => 'GPS fix available',
-      'no_fix' => 'Searching for GPS fix',
+      'fixed' => 'Location available',
+      'no_fix' => 'Finding location',
       _ => 'Unknown',
     };
     return connection == 'online' || status == 'unknown'

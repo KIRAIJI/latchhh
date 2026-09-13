@@ -28,6 +28,7 @@ class LatchController extends ChangeNotifier {
   final VoidCallback? onSessionExpired;
   bool _sessionClearInProgress = false;
   bool _silentItemsRefreshInProgress = false;
+  int _itemsRequestId = 0;
 
   LatchUser? user;
   List<LatchItem> items = const [];
@@ -132,6 +133,8 @@ class LatchController extends ChangeNotifier {
 
   Future<void> _clearSession() async {
     await _googleOAuth.signOut();
+    _itemsRequestId++;
+    itemsLoading = false;
     api.token = null;
     user = null;
     items = const [];
@@ -221,16 +224,20 @@ class LatchController extends ChangeNotifier {
   }
 
   Future<void> refreshItems() async {
+    final requestId = ++_itemsRequestId;
     itemsLoading = true;
     itemsError = null;
     notifyListeners();
     try {
-      items = await api.items();
+      final result = await api.items();
+      if (requestId == _itemsRequestId) items = result;
     } on Object catch (error) {
-      itemsError = _message(error);
+      if (requestId == _itemsRequestId) itemsError = _message(error);
     } finally {
-      itemsLoading = false;
-      notifyListeners();
+      if (requestId == _itemsRequestId) {
+        itemsLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -238,8 +245,11 @@ class LatchController extends ChangeNotifier {
     if (itemsLoading || _silentItemsRefreshInProgress) return;
 
     _silentItemsRefreshInProgress = true;
+    final requestId = ++_itemsRequestId;
     try {
-      items = await api.items();
+      final result = await api.items();
+      if (requestId != _itemsRequestId) return;
+      items = result;
       itemsError = null;
       notifyListeners();
     } on Object {
@@ -250,27 +260,36 @@ class LatchController extends ChangeNotifier {
   }
 
   Future<void> refreshItemsFromTracker() async {
+    final requestId = ++_itemsRequestId;
     itemsLoading = true;
     itemsError = null;
     notifyListeners();
     try {
       if (items.isEmpty) {
-        items = await api.items();
+        final result = await api.items();
+        if (requestId == _itemsRequestId) items = result;
       } else {
-        items = await Future.wait(
+        final result = await Future.wait(
           items.map((item) => api.refreshItem(item.id)),
         );
+        if (requestId == _itemsRequestId) items = result;
       }
     } on Object catch (error) {
+      if (requestId != _itemsRequestId) return;
       itemsError = _message(error);
       try {
-        items = await api.items();
+        final result = await api.items();
+        if (requestId == _itemsRequestId) items = result;
       } on Object catch (fallbackError) {
-        itemsError ??= _message(fallbackError);
+        if (requestId == _itemsRequestId) {
+          itemsError ??= _message(fallbackError);
+        }
       }
     } finally {
-      itemsLoading = false;
-      notifyListeners();
+      if (requestId == _itemsRequestId) {
+        itemsLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -483,6 +502,7 @@ class LatchController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _itemsRequestId++;
     api.onUnauthorized = null;
     api.close();
     super.dispose();

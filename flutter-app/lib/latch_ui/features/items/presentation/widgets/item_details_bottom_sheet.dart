@@ -185,7 +185,7 @@ class ItemDetailsBottomSheet extends StatelessWidget {
   }
 
   String? get _gnssSupportingValue {
-    final parts = <String>[?satellitesText, ?hdopText, ?gnssTimestampText];
+    final parts = <String>[?gnssTimestampText];
     if (parts.isEmpty) {
       return null;
     }
@@ -262,7 +262,7 @@ class ItemDetailsBottomSheet extends StatelessWidget {
                     _MetricTile(
                       icon: AppIcons.gps,
                       iconColor: AppColors.textPrimary,
-                      label: 'GNSS Status',
+                      label: 'Location status',
                       value: gnssStatusText,
                       supportingValue: _gnssSupportingValue,
                       textTheme: textTheme,
@@ -274,9 +274,6 @@ class ItemDetailsBottomSheet extends StatelessWidget {
                       label: 'Network Signal',
                       value: networkSignalBarCount == null
                           ? signalLevelText
-                          : null,
-                      supportingValue: networkSignalBarCount == null
-                          ? gsmCsqText
                           : null,
                       valueWidget: networkSignalBarCount == null
                           ? null
@@ -595,14 +592,6 @@ class _LocationValue extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               );
             },
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          SelectableText(
-            coordinatesText,
-            style: textTheme.bodySmall?.copyWith(
-              color: AppColors.textMuted,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
           ),
         ],
       ],

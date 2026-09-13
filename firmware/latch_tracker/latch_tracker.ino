@@ -7,7 +7,7 @@
 #include <esp_system.h>
 
 namespace Config {
-constexpr char kFirmwareVersion[] = "1.5.1";
+constexpr char kFirmwareVersion[] = "1.5.2";
 constexpr char kApns[][24] = {
   "smartlte",
   "internet.globe.com.ph",
@@ -132,14 +132,17 @@ const byte kUbxRate1Hz[] = {
   0x01, 0x39
 };
 
-const byte kUbxNav5Automotive[] = {
-  0xB5, 0x62, 0x06, 0x24, 0x24, 0x00,
+const byte kUbxNav5AutomotivePayload[] = {
   0xFF, 0xFF, 0x04, 0x03, 0x00, 0x00, 0x00, 0x00,
   0x10, 0x27, 0x00, 0x00, 0x05, 0x00, 0xFA, 0x00,
   0xFA, 0x00, 0x64, 0x00, 0x2C, 0x01, 0x00, 0x3C,
   0x00, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x16, 0xDC
+  0x00, 0x00, 0x00, 0x00
 };
+static_assert(
+  sizeof(kUbxNav5AutomotivePayload) == 36,
+  "UBX-CFG-NAV5 payload must be 36 bytes."
+);
 
 const byte kUbxSoftwareBackupPayload[] = {
   // Version and reserved bytes.
@@ -943,7 +946,12 @@ void configureGps() {
   Serial.println("Configuring NEO-M8N.");
   sendUbx(kUbxRate1Hz, sizeof(kUbxRate1Hz));
   waitWithServices(500);
-  sendUbx(kUbxNav5Automotive, sizeof(kUbxNav5Automotive));
+  sendUbxPacket(
+    0x06,
+    0x24,
+    kUbxNav5AutomotivePayload,
+    sizeof(kUbxNav5AutomotivePayload)
+  );
   waitWithServices(500);
   sendUbxPacket(
     0x06,
