@@ -7,7 +7,7 @@
 #include <esp_system.h>
 
 namespace Config {
-constexpr char kFirmwareVersion[] = "1.5.2";
+constexpr char kFirmwareVersion[] = "1.6.0";
 constexpr char kApns[][24] = {
   "smartlte",
   "internet.globe.com.ph",
@@ -17,8 +17,11 @@ constexpr char kApns[][24] = {
   "",
 };
 constexpr uint8_t kApnCount = sizeof(kApns) / sizeof(kApns[0]);
-constexpr char kTrackerUrl[] =
-  "http://161.118.252.4:5055/?id=LATCH001";
+constexpr char kTrackerBaseUrl[] = "http://161.118.252.4:5055/?id=";
+constexpr char kPreferencesNamespace[] = "latch";
+constexpr char kTrackerIdPreferenceKey[] = "tracker_id";
+constexpr size_t kTrackerIdMaxLength = 64;
+constexpr uint32_t kProvisioningReminderIntervalMs = 5000;
 
 constexpr uint32_t kSerialBaud = 115200;
 constexpr uint32_t kModemBaud = 9600;
@@ -122,6 +125,10 @@ uint32_t nextWifiScanAt = 0;
 uint8_t wifiObservationCount = 0;
 WifiObservation wifiObservations[Config::kMaxWifiAccessPoints];
 uint8_t preferredApnIndex = 0;
+String trackerUniqueId;
+String serialCommandBuffer;
+bool serialCommandOverflow = false;
+uint32_t nextProvisioningReminderAt = 0;
 
 void enterChargeOnlyMode();
 void requestGpsSoftwareBackup();
@@ -306,6 +313,171 @@ void configureStatusLeds() {
   );
 }
 
+bool isValidTrackerUniqueId(const String& value) {
+  if (
+    value.length() == 0
+    || value.length() > Config::kTrackerIdMaxLength
+  ) {
+    return false;
+  }
+
+  for (size_t index = 0; index < value.length(); index++) {
+    const char character = value.charAt(index);
+    const bool allowed =
+      (character >= 'A' && character <= 'Z')
+      || (character >= 'a' && character <= 'z')
+      || (character >= '0' && character <= '9')
+      || character == '-'
+      || character == '_'
+      || character == '.';
+    if (!allowed) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool loadTrackerUniqueId() {
+  Preferences preferences;
+  if (!preferences.begin(Config::kPreferencesNamespace, true)) {
+    Serial.println("Could not open tracker provisioning storage.");
+    return false;
+  }
+
+  const String storedId = preferences.getString(
+    Config::kTrackerIdPreferenceKey,
+    ""
+  );
+  preferences.end();
+
+  if (!isValidTrackerUniqueId(storedId)) {
+    trackerUniqueId = "";
+    return false;
+  }
+
+  trackerUniqueId = storedId;
+  Serial.printf("Tracker ID: %s.\n", trackerUniqueId.c_str());
+  return true;
+}
+
+bool saveTrackerUniqueId(const String& value) {
+  if (!isValidTrackerUniqueId(value)) {
+    return false;
+  }
+
+  Preferences preferences;
+  if (!preferences.begin(Config::kPreferencesNamespace, false)) {
+    return false;
+  }
+  const size_t written = preferences.putString(
+    Config::kTrackerIdPreferenceKey,
+    value
+  );
+  preferences.end();
+
+  if (written != value.length()) {
+    return false;
+  }
+  trackerUniqueId = value;
+  return true;
+}
+
+void processSerialCommand(String command) {
+  command.trim();
+  if (command.length() == 0) {
+    return;
+  }
+
+  if (command == "GET_TRACKER_ID") {
+    if (trackerUniqueId.length() == 0) {
+      Serial.println("Tracker ID: <not provisioned>.");
+    } else {
+      Serial.printf("Tracker ID: %s.\n", trackerUniqueId.c_str());
+    }
+    return;
+  }
+
+  const String prefix = "SET_TRACKER_ID=";
+  if (!command.startsWith(prefix)) {
+    Serial.println("Unknown provisioning command.");
+    return;
+  }
+
+  String requestedId = command.substring(prefix.length());
+  requestedId.trim();
+  if (!isValidTrackerUniqueId(requestedId)) {
+    Serial.println(
+      "Invalid tracker ID. Use 1-64 letters, numbers, dots, dashes, or underscores."
+    );
+    return;
+  }
+
+  if (!saveTrackerUniqueId(requestedId)) {
+    Serial.println("Could not save tracker ID.");
+    return;
+  }
+
+  Serial.printf("Tracker ID saved: %s.\n", trackerUniqueId.c_str());
+  Serial.println("Restarting with the provisioned identity.");
+  Serial.flush();
+  delay(250);
+  ESP.restart();
+}
+
+void serviceSerialCommands() {
+  while (Serial.available()) {
+    const char character = static_cast<char>(Serial.read());
+    if (character == '\r') {
+      continue;
+    }
+    if (character == '\n') {
+      if (serialCommandOverflow) {
+        Serial.println("Provisioning command was too long.");
+      } else {
+        processSerialCommand(serialCommandBuffer);
+      }
+      serialCommandBuffer = "";
+      serialCommandOverflow = false;
+      continue;
+    }
+
+    if (serialCommandOverflow) {
+      continue;
+    }
+    if (
+      serialCommandBuffer.length()
+      >= Config::kTrackerIdMaxLength + 32
+    ) {
+      serialCommandOverflow = true;
+      continue;
+    }
+    serialCommandBuffer += character;
+  }
+}
+
+void waitForTrackerProvisioning() {
+  if (trackerUniqueId.length() > 0) {
+    return;
+  }
+
+  Serial.println("Device not provisioned; telemetry is disabled.");
+  Serial.println("Send SET_TRACKER_ID=<id> over USB serial.");
+  nextProvisioningReminderAt =
+    millis() + Config::kProvisioningReminderIntervalMs;
+
+  while (trackerUniqueId.length() == 0) {
+    serviceSerialCommands();
+    const uint32_t now = millis();
+    if (static_cast<int32_t>(now - nextProvisioningReminderAt) >= 0) {
+      Serial.println("Waiting for tracker ID provisioning.");
+      nextProvisioningReminderAt =
+        now + Config::kProvisioningReminderIntervalMs;
+    }
+    updateStatusLeds();
+    delay(10);
+  }
+}
+
 void drainGpsInput() {
   if (!gpsSerialStarted) {
     return;
@@ -401,6 +573,7 @@ void startWifiScanIfNeeded() {
 }
 
 void serviceRuntime() {
+  serviceSerialCommands();
   drainGpsInput();
   serviceWifiScan();
   updateStatusLeds();
@@ -748,6 +921,7 @@ void enterChargeOnlyMode() {
   updateStatusLeds();
 
   while (true) {
+    serviceSerialCommands();
     esp_sleep_enable_timer_wakeup(
       static_cast<uint64_t>(Config::kChargeModePollMs) * 1000ULL
     );
@@ -1001,7 +1175,8 @@ bool isFreshGpsValue(bool valid, uint32_t age) {
 String buildTelemetryUrl(bool hasFix) {
   String url;
   url.reserve(384);
-  url = Config::kTrackerUrl;
+  url = Config::kTrackerBaseUrl;
+  url += trackerUniqueId;
   url += "&valid=";
   url += hasFix ? "true" : "false";
 
@@ -1084,6 +1259,11 @@ String buildTelemetryUrl(bool hasFix) {
 }
 
 TelemetryResult sendTelemetry() {
+  if (!isValidTrackerUniqueId(trackerUniqueId)) {
+    Serial.println("Telemetry disabled: device is not provisioned.");
+    return TelemetryResult::kFailed;
+  }
+
   bool freshFix = hasFreshGpsFix();
   if (freshFix) {
     lastLatitude = gps.location.lat();
@@ -1179,6 +1359,8 @@ void setup() {
     Config::kFirmwareVersion,
     resetReasonName()
   );
+  loadTrackerUniqueId();
+  waitForTrackerProvisioning();
   loadPreferredApn();
 
   Wire.begin(Config::kPowerSda, Config::kPowerScl, 400000);

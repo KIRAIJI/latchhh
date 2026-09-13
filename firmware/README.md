@@ -1,7 +1,7 @@
 # LATCH tracker firmware
 
-The production Traccar device uses unique ID `LATCH001`. The corrected sketch is
-in `latch_tracker/latch_tracker.ino`.
+The current prototype is provisioned in Traccar as unique ID `LATCH001`. The
+production sketch is in `latch_tracker/latch_tracker.ino`.
 
 ## Target hardware
 
@@ -56,6 +56,42 @@ Firmware 1.5.2 builds the NEO-M8N automotive navigation configuration with the
 same checksum-producing UBX helper used by other generated packets. This keeps
 the packet checksum synchronized with its 36-byte payload so the receiver can
 accept the configuration.
+
+Firmware 1.6.0 removes the Traccar unique ID from the shared firmware image. A
+physical unit stores its case-sensitive Traccar unique ID in ESP32 non-volatile
+storage and reads it at every boot. An unprovisioned unit does not transmit, so
+multiple new devices cannot accidentally report under the same Traccar record.
+The APN and tracker ID share the existing `latch` Preferences namespace but use
+separate keys.
+
+## Device provisioning
+
+Create the device in Traccar first, then write that exact case-sensitive unique
+ID to the ESP32 after flashing the common firmware image:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File provision.ps1 `
+  -Port COM3 `
+  -TrackerUniqueId LATCH001
+```
+
+The current prototype should remain `LATCH001`. Production units should each
+receive their own random Traccar unique ID. The firmware accepts 1-64 letters,
+numbers, dots, dashes, or underscores. The provisioning script safely resets a
+unit that is already in USB charge-only mode and retries until the firmware
+confirms the stored ID. While the firmware is awake, the stored value can also
+be queried by sending `GET_TRACKER_ID` at 115200 baud.
+
+After the Traccar device exists, pre-register its public claim UID and provider
+mapping in the Laravel backend:
+
+```powershell
+php artisan latch:register-device LATCH-ABCD-1234 <tracker-unique-id>
+```
+
+Provisioning changes device configuration only. It does not require editing or
+recompiling `latch_tracker.ino`, so every production unit can use the same
+firmware binary.
 
 Firmware 1.3.0 adds an asynchronous, scan-only Wi-Fi location fallback. When
 there is no fresh GNSS fix, the ESP32 periodically records up to six of the
