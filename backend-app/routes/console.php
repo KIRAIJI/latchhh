@@ -10,7 +10,7 @@ Artisan::command('inspire', function () {
 
 Schedule::command('latch:dispatch-sync')
     ->name('latch.sync')
-    ->everyTenSeconds()
+    ->everyFiveSeconds()
     ->onOneServer()
     ->withoutOverlapping(2);
 
