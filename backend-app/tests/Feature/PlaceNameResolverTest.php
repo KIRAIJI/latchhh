@@ -20,12 +20,14 @@ it('prefers a nearby school name and caches the result', function () {
             'places' => [
                 [
                     'displayName' => ['text' => 'Nearby Convenience Store'],
+                    'formattedAddress' => '123 Main Street, Angeles City, Pampanga',
                     'location' => ['latitude' => 15.1451, 'longitude' => 120.5881],
                     'types' => ['convenience_store', 'store'],
                     'businessStatus' => 'OPERATIONAL',
                 ],
                 [
                     'displayName' => ['text' => 'Angeles University Foundation'],
+                    'formattedAddress' => 'MacArthur Highway, Angeles City, Pampanga',
                     'location' => ['latitude' => 15.1454, 'longitude' => 120.5883],
                     'types' => ['university', 'school'],
                     'businessStatus' => 'OPERATIONAL',
@@ -37,9 +39,9 @@ it('prefers a nearby school name and caches the result', function () {
     $resolver = app(PlaceNameResolver::class);
 
     expect($resolver->resolve(15.145, 120.588))
-        ->toBe('Angeles University Foundation')
+        ->toBe('Angeles University Foundation, MacArthur Highway, Angeles City, Pampanga')
         ->and($resolver->resolve(15.145, 120.588))
-        ->toBe('Angeles University Foundation');
+        ->toBe('Angeles University Foundation, MacArthur Highway, Angeles City, Pampanga');
 
     Http::assertSentCount(1);
     Http::assertSent(fn ($request) => $request->hasHeader('X-Goog-Api-Key', 'test-server-key')

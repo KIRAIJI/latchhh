@@ -60,7 +60,7 @@ class PlaceNameResolver
 
     public function resolve(float $latitude, float $longitude): ?string
     {
-        $cacheKey = 'place-name:'.hash('sha256', sprintf('%.4F,%.4F', $latitude, $longitude));
+        $cacheKey = 'place-name-v2:'.hash('sha256', sprintf('%.4F,%.4F', $latitude, $longitude));
         $cached = Cache::get($cacheKey);
 
         if (is_array($cached) && array_key_exists('name', $cached)) {
@@ -125,6 +125,7 @@ class PlaceNameResolver
 
                 return [
                     'name' => data_get($place, 'displayName.text'),
+                    'address' => data_get($place, 'formattedAddress'),
                     'distance' => $this->distanceMeters(
                         $latitude,
                         $longitude,
@@ -134,9 +135,11 @@ class PlaceNameResolver
                     'priority' => $priority === false ? count(self::PRIORITY_TYPES) : $priority,
                 ];
             })
-            ->filter(fn (array $place) => is_string($place['name'])
-                && trim($place['name']) !== ''
-                && $place['distance'] <= $radius)
+            ->filter(fn (array $place) => (
+                    (is_string($place['name']) && trim($place['name']) !== '')
+                    || (is_string($place['address'])
+                        && trim($place['address']) !== '')
+                ) && $place['distance'] <= $radius)
             ->sortBy(fn (array $place) => sprintf('%02d-%012.4f', $place['priority'], $place['distance']))
             ->first();
 
@@ -144,7 +147,15 @@ class PlaceNameResolver
             return null;
         }
 
-        return mb_substr(trim($candidates['name']), 0, 191);
+        $name = is_string($candidates['name']) ? trim($candidates['name']) : '';
+        $address = is_string($candidates['address'])
+            ? trim($candidates['address'])
+            : '';
+        $label = $name !== '' && $address !== ''
+            ? "{$name}, {$address}"
+            : ($name !== '' ? $name : $address);
+
+        return mb_substr($label, 0, 191);
     }
 
     private function distanceMeters(float $latA, float $lonA, float $latB, float $lonB): float
