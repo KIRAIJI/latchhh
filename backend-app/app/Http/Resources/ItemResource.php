@@ -14,7 +14,10 @@ class ItemResource extends JsonResource
         $status = app(StatusNormalizationService::class);
         $locationType = $status->location($this->resource);
         $connection = $status->connection($this->resource);
-        $battery = $status->battery($this->last_battery_percentage);
+        $batteryPercentage = $connection->value === 'offline'
+            ? null
+            : $this->last_battery_percentage;
+        $battery = $status->battery($batteryPercentage);
         $signal = $status->signal($this->last_gsm_csq);
 
         return [
@@ -36,7 +39,7 @@ class ItemResource extends JsonResource
             'status' => [
                 'connection' => $connection->value,
                 'last_communication_at' => $this->last_communication_at?->utc()->toISOString(),
-                'battery_percentage' => $this->last_battery_percentage,
+                'battery_percentage' => $batteryPercentage,
                 'battery_status' => $battery->value,
                 'gnss_status' => ($this->last_gnss_status ?? GnssStatus::Unknown)->value,
                 'telemetry_recorded_at' => $this->last_telemetry_at?->utc()->toISOString(),
