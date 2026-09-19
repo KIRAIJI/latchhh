@@ -117,7 +117,7 @@ class DeviceTransitionService
                 DeviceActivityType::DeviceOnline,
                 ActivitySource::Tracker,
                 'Item is online',
-                "{$device->item_name} is online again.",
+                'Back online.',
                 eventKey: $eventKey,
                 occurredAt: $device->last_communication_at,
             );
@@ -126,7 +126,7 @@ class DeviceTransitionService
                 $device,
                 NotificationType::DeviceOnline,
                 'Item is online',
-                "{$device->item_name} is online again.",
+                'Back online.',
                 $eventKey,
             );
 
