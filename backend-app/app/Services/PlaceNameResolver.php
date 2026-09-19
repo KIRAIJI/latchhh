@@ -60,7 +60,7 @@ class PlaceNameResolver
 
     public function resolve(float $latitude, float $longitude): ?string
     {
-        $cacheKey = 'place-name-v2:'.hash('sha256', sprintf('%.4F,%.4F', $latitude, $longitude));
+        $cacheKey = 'place-name-v3:'.hash('sha256', sprintf('%.4F,%.4F', $latitude, $longitude));
         $cached = Cache::get($cacheKey);
 
         if (is_array($cached) && array_key_exists('name', $cached)) {
