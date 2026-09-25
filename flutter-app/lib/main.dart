@@ -125,7 +125,8 @@ class UploaderBridge extends ChangeNotifier {
 
   bool get busy => readBusy?.call() ?? false;
 
-  String get status => readStatus?.call() ?? 'Pick an image to begin.';
+  String get status =>
+      readStatus?.call() ?? 'Start with a blank canvas or template.';
 
   bool get hasProcessedImage => readHasProcessedImage?.call() ?? false;
 }
@@ -254,7 +255,7 @@ class _UploaderPageState extends State<UploaderPage>
   bool _type4NlenFraming = false;
   double _threshold = 128;
   bool _busy = false;
-  String _status = 'Choose an image to begin.';
+  String _status = 'Start with a blank canvas or template.';
   NfcWriteMode _mode = NfcWriteMode.isoDepRaw;
   bool _autoOffsetP1P2 = false;
   bool _appendLe = true;
@@ -1600,9 +1601,7 @@ class _UploaderPageState extends State<UploaderPage>
 
     setState(() {
       _busy = true;
-      _status =
-          'Hold your phone against the NFC area of the LATCH device. '
-          'Keep it there until the update finishes.';
+      _status = 'NFC write in progress.';
     });
     _appendLog('=== New write attempt ===');
     _appendLog('Mode: ${_mode.name}; payload bytes: ${payload.length}');
@@ -1784,9 +1783,7 @@ class _UploaderPageState extends State<UploaderPage>
                     return;
                   }
                   setState(() {
-                    _status =
-                        'Refreshing E-Paper… Keep your phone in place '
-                        '($remaining s)';
+                    _status = 'Refreshing E-Paper… ($remaining s)';
                   });
                   await Future<void>.delayed(const Duration(seconds: 1));
                 }
@@ -1844,9 +1841,7 @@ class _UploaderPageState extends State<UploaderPage>
                   return;
                 }
                 setState(() {
-                  _status =
-                      'The display is refreshing. Keep your phone in place while '
-                      'LATCH checks completion automatically.';
+                  _status = 'Checking display refresh.';
                 });
                 scheduleRestart();
                 return;
@@ -1868,9 +1863,7 @@ class _UploaderPageState extends State<UploaderPage>
                   return;
                 }
                 setState(() {
-                  _status =
-                      'Connection interrupted. Place your phone back on the '
-                      'device to continue.';
+                  _status = 'NFC connection interrupted.';
                 });
                 _appendLog(
                   'Tag lost during F0D2 block $resumeBlock. Restarting reader '
@@ -1895,9 +1888,7 @@ class _UploaderPageState extends State<UploaderPage>
                   return;
                 }
                 setState(() {
-                  _status =
-                      'Connection interrupted. Place your phone back on the '
-                      'device to continue.';
+                  _status = 'NFC connection interrupted.';
                 });
                 scheduleRestart();
                 return;
@@ -2730,7 +2721,7 @@ class _UploaderPageState extends State<UploaderPage>
       );
       if (mounted) {
         setState(() {
-          _status = 'Refreshing E-Paper… Keep your phone in place.';
+          _status = 'Refreshing E-Paper…';
         });
       }
     } else if (refreshOnly) {

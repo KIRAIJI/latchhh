@@ -67,6 +67,7 @@ class EpaperLayer {
     this.y = 16,
     this.width = 208,
     this.fontSize = 18,
+    this.textColor = Colors.black,
   });
   String? text;
   final Uint8List? imageBytes;
@@ -75,12 +76,13 @@ class EpaperLayer {
   double y;
   double width;
   double fontSize;
+  Color textColor;
 
   TextPainter get textPainter => TextPainter(
     text: TextSpan(
       text: text,
       style: TextStyle(
-        color: Colors.black,
+        color: textColor,
         fontSize: fontSize,
         height: 1.2,
         fontFamily: 'Roboto',
@@ -114,6 +116,7 @@ class EpaperLayer {
     y: y,
     width: width,
     fontSize: fontSize,
+    textColor: textColor,
   );
 }
 

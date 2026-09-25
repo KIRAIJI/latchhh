@@ -132,14 +132,18 @@ class _EpaperImageEditorScreenState extends State<EpaperImageEditorScreen> {
   }
 
   Future<void> _editText([EpaperLayer? layer]) async {
-    final text = await showDialog<String>(
+    final result = await showDialog<_TextDialogResult>(
       context: context,
-      builder: (_) => _TextDialog(initialText: layer?.text),
+      builder: (_) => _TextDialog(
+        initialText: layer?.text,
+        initialColor: layer?.textColor ?? Colors.black,
+      ),
     );
-    if (!mounted || text == null) return;
+    if (!mounted || result == null) return;
     setState(() {
       final target = layer ?? EpaperLayer();
-      target.text = text;
+      target.text = result.text;
+      target.textColor = result.color;
       if (layer == null) _layout.layers.add(target);
       target.keepOnCanvas();
       _selected = target;
@@ -434,14 +438,24 @@ class _EpaperImageEditorScreenState extends State<EpaperImageEditorScreen> {
 }
 
 class _TextDialog extends StatefulWidget {
-  const _TextDialog({this.initialText});
+  const _TextDialog({this.initialText, required this.initialColor});
   final String? initialText;
+  final Color initialColor;
   @override
   State<_TextDialog> createState() => _TextDialogState();
 }
 
 class _TextDialogState extends State<_TextDialog> {
   late final _controller = TextEditingController(text: widget.initialText);
+  late Color _color = widget.initialColor;
+
+  static const _colors = <Color>[
+    Colors.black,
+    Color(0xff444444),
+    Colors.red,
+    Colors.blue,
+    Colors.green,
+  ];
   @override
   void dispose() {
     _controller.dispose();
@@ -451,13 +465,50 @@ class _TextDialogState extends State<_TextDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(widget.initialText == null ? 'Add text' : 'Edit text'),
-    content: TextField(
-      controller: _controller,
-      autofocus: true,
-      minLines: 2,
-      maxLines: 6,
-      maxLength: 500,
-      decoration: const InputDecoration(labelText: 'Text'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _controller,
+          autofocus: true,
+          minLines: 2,
+          maxLines: 6,
+          maxLength: 500,
+          decoration: const InputDecoration(labelText: 'Text'),
+        ),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text('Font color'),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          children: [
+            for (final color in _colors)
+              GestureDetector(
+                onTap: () => setState(() => _color = color),
+                child: Semantics(
+                  label: 'Font color',
+                  selected: _color == color,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _color == color
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey,
+                        width: _color == color ? 3 : 1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     ),
     actions: [
       TextButton(
@@ -467,13 +518,22 @@ class _TextDialogState extends State<_TextDialog> {
       TextButton(
         onPressed: () {
           if (_controller.text.trim().isNotEmpty) {
-            Navigator.pop(context, _controller.text.trim());
+            Navigator.pop(
+              context,
+              _TextDialogResult(_controller.text.trim(), _color),
+            );
           }
         },
         child: const Text('Save'),
       ),
     ],
   );
+}
+
+class _TextDialogResult {
+  const _TextDialogResult(this.text, this.color);
+  final String text;
+  final Color color;
 }
 
 class _LayoutPainter extends CustomPainter {

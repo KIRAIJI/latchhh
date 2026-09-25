@@ -76,7 +76,7 @@ class _LatchIntegratedShellState extends State<LatchIntegratedShell>
         }
       });
     }
-    _itemsRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _itemsRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (_lifecycleState == AppLifecycleState.resumed &&
           _selectedIndex == 0 &&
           widget.controller.isAuthenticated) {

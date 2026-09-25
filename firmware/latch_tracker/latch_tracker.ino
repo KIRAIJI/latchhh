@@ -7,7 +7,7 @@
 #include <esp_system.h>
 
 namespace Config {
-constexpr char kFirmwareVersion[] = "1.6.0";
+constexpr char kFirmwareVersion[] = "1.6.8";
 constexpr char kApns[][24] = {
   "smartlte",
   "internet.globe.com.ph",
@@ -27,20 +27,27 @@ constexpr uint32_t kSerialBaud = 115200;
 constexpr uint32_t kModemBaud = 9600;
 constexpr uint32_t kGpsBaud = 9600;
 
-constexpr uint32_t kSendIntervalMs = 15000;
-constexpr uint32_t kRetryIntervalMs = 15000;
+constexpr uint32_t kSendIntervalMs = 10000;
+constexpr uint32_t kRetryIntervalMs = 10000;
 constexpr uint32_t kModemStatusIntervalMs = 60000;
 constexpr uint32_t kPowerStatusIntervalMs = 2000;
 constexpr uint32_t kGpsFixMaxAgeMs = 15000;
+constexpr uint8_t kGpsMinimumSatellites = 4;
+constexpr float kGpsMaximumHdop = 3.0F;
 constexpr uint32_t kGpsDataTimeoutMs = 10000;
 constexpr uint32_t kWifiScanIntervalMs = 300000;
 constexpr uint32_t kWifiScanRetryIntervalMs = 30000;
 constexpr uint32_t kLedBlinkHalfPeriodMs = 500;
+constexpr int kLowBatteryThresholdPercent = 25;
+constexpr uint32_t kFullChargeGracePeriodMs = 120000;
+constexpr uint8_t kLowBatteryReadingsRequired = 3;
+constexpr uint8_t kFullChargeReadingsRequired = 3;
 constexpr uint32_t kIdleLightSleepMs = 100;
 constexpr uint32_t kModemWakeSettleMs = 150;
 constexpr uint32_t kChargeModePollMs = 2000;
 constexpr uint32_t kGpsPowerTransitionMs = 250;
 constexpr uint32_t kModemRestartSettleMs = 12000;
+constexpr uint8_t kChargeModeReadFailureLimit = 3;
 constexpr uint8_t kMaxConsecutiveSendFailures = 3;
 constexpr uint8_t kMaxWifiAccessPoints = 6;
 constexpr bool kBalancedBatteryMode = true;
@@ -63,10 +70,10 @@ constexpr uint8_t kIp5306PowerSource = 0x70;
 constexpr uint8_t kIp5306BatteryFull = 0x71;
 constexpr uint8_t kIp5306BatteryLevel = 0x78;
 
-constexpr int kBlueGnssLed = 18;
-constexpr int kYellowNetworkLed = 2;
-constexpr int kRedChargingLed = 25;
-constexpr int kGreenChargedLed = 19;
+constexpr int kRedChargingLed = 2;
+constexpr int kGreenChargedLed = 18;
+constexpr int kBlueGnssLed = 25;
+constexpr int kYellowNetworkLed = 19;
 
 // Change an individual value to false if that LED is wired active-low.
 constexpr bool kBlueGnssLedActiveHigh = true;
@@ -122,6 +129,11 @@ bool wifiScanInProgress = false;
 double lastLatitude = 0;
 double lastLongitude = 0;
 uint32_t nextWifiScanAt = 0;
+uint32_t fullChargeGraceUntil = 0;
+uint8_t lowBatteryReadings = 0;
+uint8_t fullChargeReadings = 0;
+int batterySamples[3] = {-1, -1, -1};
+uint8_t batterySampleCount = 0;
 uint8_t wifiObservationCount = 0;
 WifiObservation wifiObservations[Config::kMaxWifiAccessPoints];
 uint8_t preferredApnIndex = 0;
@@ -132,6 +144,8 @@ uint32_t nextProvisioningReminderAt = 0;
 
 void enterChargeOnlyMode();
 void requestGpsSoftwareBackup();
+void refreshSim800PowerFallback();
+bool timeReached(uint32_t now, uint32_t deadline);
 
 const byte kUbxRate1Hz[] = {
   0xB5, 0x62, 0x06, 0x08, 0x06, 0x00,
@@ -237,7 +251,35 @@ const char* powerStateName(int chargeState) {
 
 bool hasFreshGpsFix() {
   return gps.location.isValid()
-    && gps.location.age() <= Config::kGpsFixMaxAgeMs;
+    && gps.location.age() <= Config::kGpsFixMaxAgeMs
+    && gps.satellites.isValid()
+    && gps.satellites.value() >= Config::kGpsMinimumSatellites
+    && gps.hdop.isValid()
+    && gps.hdop.hdop() <= Config::kGpsMaximumHdop;
+}
+
+int smoothBatteryPercentage(int percentage) {
+  if (percentage < 0 || percentage > 100) {
+    return -1;
+  }
+
+  batterySamples[batterySampleCount % 3] = percentage;
+  batterySampleCount++;
+  const uint8_t count = min<uint8_t>(batterySampleCount, 3);
+  int sorted[3];
+  for (uint8_t index = 0; index < count; index++) {
+    sorted[index] = batterySamples[index];
+  }
+  for (uint8_t index = 1; index < count; index++) {
+    const int value = sorted[index];
+    int previous = index;
+    while (previous > 0 && sorted[previous - 1] > value) {
+      sorted[previous] = sorted[previous - 1];
+      previous--;
+    }
+    sorted[previous] = value;
+  }
+  return sorted[count / 2];
 }
 
 void writeLed(int pin, bool on, bool activeHigh) {
@@ -259,8 +301,16 @@ void updateStatusLeds() {
   const bool yellowOn = modemStatus.registered
     || (modemStatus.responsive && blinkOn);
 
-  // Power state: 1 = charging, 2 = charging finished.
-  const bool redOn = powerStatus.chargeState == 1;
+  // Charging is steady red; low battery blinks red only while on battery.
+  const bool lowBattery = powerStatus.chargeState == 0
+    && powerStatus.batteryPercentage >= 0
+    && powerStatus.batteryPercentage
+      <= Config::kLowBatteryThresholdPercent
+    && lowBatteryReadings >= Config::kLowBatteryReadingsRequired
+    && !timeReached(now, fullChargeGraceUntil);
+  const bool redOn = powerStatus.chargeState == 1
+    || (lowBattery && blinkOn);
+  // Power state 2 means charging has finished.
   const bool greenOn = powerStatus.chargeState == 2;
 
   writeLed(
@@ -825,17 +875,23 @@ bool configurePowerManagement() {
 
 int batteryPercentageFromIp5306(int levelRegister) {
   const uint8_t levelBits =
-    (~(static_cast<uint8_t>(levelRegister) >> 4)) & 0x0F;
-  int percentage = 0;
-  for (uint8_t bit = 0; bit < 4; bit++) {
-    if ((levelBits & (1U << bit)) != 0) {
-      percentage += 25;
-    }
+    (static_cast<uint8_t>(levelRegister) >> 4) & 0x0F;
+  switch (levelBits) {
+    case 0x0F:
+      return 100;
+    case 0x07:
+      return 75;
+    case 0x03:
+      return 50;
+    case 0x01:
+      return 25;
+    default:
+      return -1;
   }
-  return percentage;
 }
 
 bool refreshIp5306PowerStatus() {
+  const bool wasExternalPower = powerStatus.externalPower;
   const int source = readIp5306Register(Config::kIp5306PowerSource);
   const int full = readIp5306Register(Config::kIp5306BatteryFull);
   const int level = readIp5306Register(Config::kIp5306BatteryLevel);
@@ -843,15 +899,67 @@ bool refreshIp5306PowerStatus() {
     return false;
   }
 
+  const bool rawBatteryFull = (full & 0x08) != 0;
+  const bool rawExternalPower = (source & 0x08) != 0;
+  if (rawExternalPower && rawBatteryFull) {
+    if (fullChargeReadings < Config::kFullChargeReadingsRequired) {
+      fullChargeReadings++;
+    }
+  } else {
+    fullChargeReadings = 0;
+  }
+
   powerStatus.ip5306Available = true;
-  powerStatus.externalPower = (source & 0x08) != 0;
-  powerStatus.batteryFull = (full & 0x08) != 0;
-  powerStatus.batteryPercentage = batteryPercentageFromIp5306(level);
+  powerStatus.externalPower = rawExternalPower;
+  powerStatus.batteryFull = powerStatus.externalPower
+    && fullChargeReadings >= Config::kFullChargeReadingsRequired;
+  // IP5306 reports stable coarse levels. Use the modem estimate only when its
+  // level register is unavailable, rather than exposing noisy pseudo-precision.
+  powerStatus.batteryPercentage = powerStatus.externalPower
+    ? (powerStatus.batteryFull ? 100 : batteryPercentageFromIp5306(level))
+    : batteryPercentageFromIp5306(level);
   powerStatus.batteryMillivolts = -1;
   powerStatus.chargeState = powerStatus.externalPower
     ? (powerStatus.batteryFull ? 2 : 1)
     : 0;
+  if (powerStatus.externalPower && powerStatus.batteryFull) {
+    fullChargeGraceUntil = millis() + Config::kFullChargeGracePeriodMs;
+    lowBatteryReadings = 0;
+  } else if (powerStatus.externalPower || powerStatus.batteryPercentage
+      > Config::kLowBatteryThresholdPercent) {
+    lowBatteryReadings = 0;
+  } else if (!wasExternalPower || powerStatus.chargeState == 0) {
+    if (lowBatteryReadings < Config::kLowBatteryReadingsRequired) {
+      lowBatteryReadings++;
+    }
+  }
+  Serial.printf(
+    "IP5306 raw: source=0x%02X full=0x%02X level=0x%02X; battery=%d%%.\n",
+    source,
+    full,
+    level,
+    powerStatus.batteryPercentage
+  );
   return true;
+}
+
+void refreshSim800BatteryFallbackForIp5306() {
+  if (!modemStatus.responsive || modemSleeping) {
+    return;
+  }
+
+  const bool ip5306ExternalPower = powerStatus.externalPower;
+  const bool ip5306BatteryFull = powerStatus.batteryFull;
+  const int ip5306ChargeState = powerStatus.chargeState;
+  refreshSim800PowerFallback();
+  if (powerStatus.batteryPercentage < 0) {
+    return;
+  }
+
+  powerStatus.ip5306Available = true;
+  powerStatus.externalPower = ip5306ExternalPower;
+  powerStatus.batteryFull = ip5306BatteryFull;
+  powerStatus.chargeState = ip5306ChargeState;
 }
 
 void refreshSim800PowerFallback() {
@@ -866,18 +974,24 @@ void refreshSim800PowerFallback() {
   powerStatus.externalPower = chargeState == 1 || chargeState == 2;
   powerStatus.batteryFull = chargeState == 2;
   powerStatus.batteryPercentage =
-    percentage >= 0 && percentage <= 100 ? percentage : -1;
+    smoothBatteryPercentage(percentage);
   powerStatus.batteryMillivolts =
     millivolts > 0 ? millivolts : -1;
 }
 
 void refreshPowerStatus() {
   if (refreshIp5306PowerStatus()) {
+    if (powerStatus.batteryPercentage < 0) {
+      refreshSim800BatteryFallbackForIp5306();
+    }
     return;
   }
 
   powerStatus = PowerStatus{};
-  if (modemStatus.responsive && !modemSleeping) {
+  if (modemSleeping) {
+    wakeModem();
+  }
+  if (modemStatus.responsive) {
     refreshSim800PowerFallback();
   }
 }
@@ -920,6 +1034,7 @@ void enterChargeOnlyMode() {
   powerDownTrackingForChargeMode();
   updateStatusLeds();
 
+  uint8_t powerStatusReadFailures = 0;
   while (true) {
     serviceSerialCommands();
     esp_sleep_enable_timer_wakeup(
@@ -929,9 +1044,21 @@ void enterChargeOnlyMode() {
     esp_light_sleep_start();
     delay(10);
 
+    const bool powerStatusRead = refreshIp5306PowerStatus();
+    if (powerStatusRead) {
+      powerStatusReadFailures = 0;
+    } else {
+      powerStatusReadFailures++;
+      Serial.printf(
+        "IP5306 status read failed (%u/%u).\n",
+        powerStatusReadFailures,
+        Config::kChargeModeReadFailureLimit
+      );
+    }
+
     if (
-      refreshIp5306PowerStatus()
-      && !powerStatus.externalPower
+      (powerStatusRead && !powerStatus.externalPower)
+      || powerStatusReadFailures >= Config::kChargeModeReadFailureLimit
     ) {
       break;
     }

@@ -197,7 +197,9 @@ class _EpaperWriteModalState extends State<EpaperWriteModal>
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: AppSpacing.lg),
+                  EpaperStatusBanner(presentation: _statusPresentation),
+                  const SizedBox(height: AppSpacing.md),
                   Text(
                     phase == _EpaperWritePhase.waiting
                         ? _status.toLowerCase().contains(
@@ -209,14 +211,12 @@ class _EpaperWriteModalState extends State<EpaperWriteModal>
                                     'display finishes updating.'
                         : phase == _EpaperWritePhase.success
                         ? 'Your image was written to the device.'
-                        : 'Check the status below and try again when ready.',
+                        : 'Check the status above and try again when ready.',
                     style: textTheme.bodyMedium?.copyWith(
                       color: AppColors.textSecondary,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  EpaperStatusBanner(presentation: _statusPresentation),
                   const SizedBox(height: AppSpacing.lg),
                   if (phase == _EpaperWritePhase.waiting)
                     LatchButton(

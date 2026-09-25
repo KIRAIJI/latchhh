@@ -31,7 +31,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('silently refreshes map items every ten seconds', (tester) async {
+  testWidgets('silently refreshes map items every five seconds', (tester) async {
     PackageInfo.setMockInitialValues(
       appName: 'LATCH',
       packageName: 'com.latch.mobile',
@@ -48,7 +48,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.pump(const Duration(seconds: 10));
+    await tester.pump(const Duration(seconds: 5));
 
     expect(controller.silentItemsRefreshCount, 1);
     expect(tester.takeException(), isNull);

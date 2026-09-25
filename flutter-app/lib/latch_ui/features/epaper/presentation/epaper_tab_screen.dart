@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../main.dart';
 import '../../../core/components/buttons/latch_button.dart';
@@ -26,7 +25,6 @@ class EpaperTabScreen extends StatefulWidget {
 }
 
 class _EpaperTabScreenState extends State<EpaperTabScreen> {
-  final ImagePicker _picker = ImagePicker();
   EpaperLayout? _layout;
 
   @override
@@ -66,68 +64,22 @@ class _EpaperTabScreenState extends State<EpaperTabScreen> {
 
   bool get _canWrite => _hasPreview && !_isBusy;
 
-  bool get _hasUploadedImage {
-    final bytes = widget.bridge.originalBytes;
-    return bytes != null && bytes.isNotEmpty;
-  }
+  bool get _canEditLayout => _layout != null && !_isBusy;
 
-  bool get _canEditImage => _hasUploadedImage && !_isBusy;
-
-  Future<void> _pickImageFromGallery() async {
-    if (_isBusy) {
+  Future<void> _editCurrentLayout() async {
+    if (!_canEditLayout) {
       return;
     }
 
     try {
-      final file = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1664,
-        maxHeight: 1664,
-        imageQuality: 100,
-        requestFullMetadata: false,
-      );
-      if (file == null) {
-        return;
-      }
-
-      final bytes = await file.readAsBytes();
-      if (!mounted) {
-        return;
-      }
-
-      await _openEditorAndIngest(bytes);
+      await _openEditorAndIngest(null, layout: _layout);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not load image: $error')));
-    }
-  }
-
-  Future<void> _editCurrentImage() async {
-    if (!_canEditImage) {
-      return;
-    }
-
-    final bytes = widget.bridge.originalBytes;
-    if (bytes == null) {
-      return;
-    }
-
-    try {
-      await _openEditorAndIngest(
-        _layout == null ? bytes : null,
-        layout: _layout,
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not edit image: $error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not edit layout: $error')),
+        );
     }
   }
 
@@ -237,41 +189,14 @@ class _EpaperTabScreenState extends State<EpaperTabScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          if (!_hasUploadedImage)
-            LatchButton(
-              label: 'Upload Image',
-              leadingIcon: Icons.photo_library_outlined,
-              variant: LatchButtonVariant.primary,
-              fullWidth: true,
-              enabled: !_isBusy,
-              onPressed: _pickImageFromGallery,
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: LatchButton(
-                    label: 'Change Image',
-                    leadingIcon: Icons.photo_library_outlined,
-                    variant: LatchButtonVariant.secondary,
-                    fullWidth: true,
-                    enabled: !_isBusy,
-                    onPressed: _pickImageFromGallery,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: LatchButton(
-                    label: 'Edit Layout',
-                    leadingIcon: Icons.edit_outlined,
-                    variant: LatchButtonVariant.secondary,
-                    fullWidth: true,
-                    enabled: _canEditImage,
-                    onPressed: _editCurrentImage,
-                  ),
-                ),
-              ],
-            ),
+          LatchButton(
+            label: 'Edit Layout',
+            leadingIcon: Icons.edit_outlined,
+            variant: LatchButtonVariant.secondary,
+            fullWidth: true,
+            enabled: _canEditLayout,
+            onPressed: _editCurrentLayout,
+          ),
           const SizedBox(height: 12),
           LatchButton(
             label: 'Write to E-Paper',
@@ -322,7 +247,7 @@ class _EpaperTabScreenState extends State<EpaperTabScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Choose a template, start a blank canvas, or add an image. Review the final display preview before writing.',
+                       'Start with a blank canvas or template, then edit the layout before writing it to the display.',
                       style: textTheme.bodyMedium?.copyWith(
                         color: AppColors.textSecondary,
                       ),
