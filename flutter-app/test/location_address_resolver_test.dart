@@ -71,6 +71,19 @@ void main() {
       'Place name unavailable',
     );
   });
+  test('does not present a block and lot as a landmark', () {
+    expect(
+      LocationAddressResolver.formatPlacemarks([
+        const Placemark(
+          name: 'B9 L21',
+          street: 'B9 L21',
+          subLocality: 'Barangay San Jose',
+          locality: 'Mexico',
+        ),
+      ]),
+      'Barangay San Jose, Mexico',
+    );
+  });
   test(
     'deduplicates lookups and retries a transient failure after cooldown',
     () async {

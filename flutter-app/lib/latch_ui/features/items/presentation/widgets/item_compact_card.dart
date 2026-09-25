@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/components/cards/latch_card.dart';
+import '../../../../core/services/location_address_resolver.dart';
 import '../../../../core/theme/app_spacing.dart';
 import 'item_details_bottom_sheet.dart';
 
@@ -42,6 +43,7 @@ class ItemCompactCard extends StatelessWidget {
     required this.locationTimeLabel,
     this.selected = false,
     this.onTap,
+    this.itemDetails,
   });
 
   final String itemName;
@@ -53,6 +55,7 @@ class ItemCompactCard extends StatelessWidget {
   final String locationTimeLabel;
   final bool selected;
   final VoidCallback? onTap;
+  final ItemDetailsData? itemDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -93,17 +96,63 @@ class ItemCompactCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(batteryLabel, style: textTheme.bodySmall),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            locationLabel,
+          _LocationLabel(
+            fallback: locationLabel,
+            details: itemDetails,
             style: textTheme.bodyMedium,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           if (locationTimeLabel.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(locationTimeLabel, style: textTheme.labelSmall),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _LocationLabel extends StatelessWidget {
+  const _LocationLabel({
+    required this.fallback,
+    required this.details,
+    required this.style,
+  });
+
+  final String fallback;
+  final ItemDetailsData? details;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = this.details;
+    if (details?.locationPlaceName != null) {
+      return Text(
+        fallback,
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+    if (details?.locationLatitude == null ||
+        details?.locationLongitude == null) {
+      return Text(
+        fallback,
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    return FutureBuilder<String>(
+      future: LocationAddressResolver.shared.resolve(
+        details!.locationLatitude!,
+        details.locationLongitude!,
+      ),
+      builder: (context, snapshot) => Text(
+        snapshot.data?.trim().isNotEmpty == true ? snapshot.data! : fallback,
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

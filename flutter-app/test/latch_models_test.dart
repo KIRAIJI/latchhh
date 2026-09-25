@@ -148,7 +148,9 @@ void main() {
     expect(error.fieldError('device_uid'), 'The device UID format is invalid.');
   });
 
-  test('last-known and offline GNSS data are labelled as historical', () {
+  testWidgets('offline item details do not present stale telemetry as live', (
+    tester,
+  ) async {
     final item = LatchItem.fromJson({
       'id': 8,
       'device_uid': 'LATCH-AB12-CD34',
@@ -178,19 +180,45 @@ void main() {
 
     final card = ItemPresentationAdapter.buildItems([item]).single;
 
+    expect(card.batteryLabel, 'Battery unavailable while offline');
     expect(card.locationLabel, 'Last known location');
     expect(card.itemDetails?.locationCoordinatesText, '14.599500, 120.984200');
     expect(card.itemDetails?.locationLatitude, 14.5995);
     expect(card.itemDetails?.locationLongitude, 120.9842);
-    expect(
-      card.itemDetails?.gnssStatusText,
-      'Location available (last reported)',
-    );
+    expect(card.locationTimeLabel, isEmpty);
+    expect(card.itemDetails?.lastCommunicationText, isNull);
+    expect(card.itemDetails?.locationTimestampText, isNull);
+    expect(card.itemDetails?.batteryPercentageText, isNull);
+    expect(card.itemDetails?.batteryStatusText, 'Unavailable while offline');
+    expect(card.itemDetails?.gnssStatusText, 'Last known location');
     expect(card.itemDetails?.satellitesText, '8 satellites visible');
-    expect(card.itemDetails?.gnssTimestampText, startsWith('Reported '));
-    expect(card.itemDetails?.batteryStatusText, 'Charging');
+    expect(card.itemDetails?.gnssTimestampText, isNull);
+    expect(card.itemDetails?.signalLevelText, 'Unavailable while offline');
+    expect(card.itemDetails?.networkSignalBarCount, isNull);
+    expect(card.itemDetails?.showNetworkSignal, isFalse);
     expect(card.itemDetails?.firmwareVersionText, 'Version 1.1.0');
     expect(card.itemDetails?.resetReasonText, 'Last restart: Power on');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ItemDetailsBottomSheet.fromData(
+            card.itemDetails!,
+            locationAddressLookup: (_, _) async => 'Home',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('On battery'), findsNothing);
+    expect(find.text('Unavailable while offline'), findsOneWidget);
+    expect(find.text('Last known location'), findsOneWidget);
+    expect(find.text('Location status'), findsNothing);
+    expect(find.text('Network Signal'), findsNothing);
+    expect(find.textContaining('Recorded'), findsNothing);
+    expect(find.textContaining('Reported'), findsNothing);
+    expect(find.textContaining('Approx.'), findsNothing);
   });
 
   test(
@@ -297,7 +325,11 @@ void main() {
         findsOneWidget,
       );
       expect(details.geofenceSummaryText, contains('Inside'));
-      expect(find.text('Manila City Hall, Ermita, Manila'), findsOneWidget);
+      expect(find.text('Manila City Hall, Ermita, Manila'), findsNothing);
+      expect(
+        find.text('Estimated current location · Angeles University Foundation'),
+        findsOneWidget,
+      );
       expect(find.text('14.599500, 120.984200'), findsNothing);
       expect(find.text('Fully charged'), findsOneWidget);
       expect(find.text('Version 1.1.0'), findsOneWidget);

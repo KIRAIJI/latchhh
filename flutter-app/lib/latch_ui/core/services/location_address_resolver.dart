@@ -153,7 +153,7 @@ class LocationAddressResolver {
         : '$number $road';
     final name = _descriptiveName(placemark);
     if (name?.toLowerCase() != street?.toLowerCase()) add(name);
-    add(street);
+    if (!_looksLikeAddress(street)) add(street);
     add(placemark.subLocality);
     add(placemark.locality);
     add(placemark.subAdministrativeArea);
@@ -165,7 +165,7 @@ class LocationAddressResolver {
 
   static String? _descriptiveName(Placemark placemark) {
     final name = _humanAddressComponent(placemark.name);
-    if (name == null) return null;
+    if (name == null || _looksLikeAddress(name)) return null;
 
     final genericValues = <String?>[
       placemark.street,
@@ -191,6 +191,16 @@ class LocationAddressResolver {
     }
 
     return name;
+  }
+
+  static bool _looksLikeAddress(String? value) {
+    final normalized = _normalized(value);
+    if (normalized == null) return false;
+
+    return RegExp(
+      r'^(?:(?:b|blk|block)\.?\s*\w+\s+(?:l|lot)\.?\s*\w+)$',
+      caseSensitive: false,
+    ).hasMatch(normalized);
   }
 
   static String? _humanAddressComponent(String? value) {

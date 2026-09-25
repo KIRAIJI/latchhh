@@ -21,6 +21,7 @@ class ItemDetailsData {
     required this.connectionColor,
     this.lastCommunicationText,
     required this.locationTypeText,
+    this.locationPlaceName,
     this.locationTimestampText,
     this.locationLatitude,
     this.locationLongitude,
@@ -34,6 +35,7 @@ class ItemDetailsData {
     required this.signalLevelText,
     this.gsmCsqText,
     this.networkSignalBarCount,
+    this.showNetworkSignal = true,
     this.firmwareVersionText,
     this.resetReasonText,
     required this.geofenceSummaryText,
@@ -47,6 +49,7 @@ class ItemDetailsData {
   final Color connectionColor;
   final String? lastCommunicationText;
   final String locationTypeText;
+  final String? locationPlaceName;
   final String? locationTimestampText;
   final double? locationLatitude;
   final double? locationLongitude;
@@ -60,6 +63,7 @@ class ItemDetailsData {
   final String signalLevelText;
   final String? gsmCsqText;
   final int? networkSignalBarCount;
+  final bool showNetworkSignal;
   final String? firmwareVersionText;
   final String? resetReasonText;
   final String geofenceSummaryText;
@@ -76,7 +80,8 @@ class ItemDetailsBottomSheet extends StatelessWidget {
     required this.connectionColor,
     this.lastCommunicationText,
     required this.locationTypeText,
-    this.locationTimestampText,
+    this.locationPlaceName,
+    required this.locationTimestampText,
     this.locationLatitude,
     this.locationLongitude,
     this.locationCoordinatesText,
@@ -89,6 +94,7 @@ class ItemDetailsBottomSheet extends StatelessWidget {
     required this.signalLevelText,
     this.gsmCsqText,
     this.networkSignalBarCount,
+    this.showNetworkSignal = true,
     this.firmwareVersionText,
     this.resetReasonText,
     required this.geofenceSummaryText,
@@ -116,6 +122,7 @@ class ItemDetailsBottomSheet extends StatelessWidget {
       connectionColor: details.connectionColor,
       lastCommunicationText: details.lastCommunicationText,
       locationTypeText: details.locationTypeText,
+      locationPlaceName: details.locationPlaceName,
       locationTimestampText: details.locationTimestampText,
       locationLatitude: details.locationLatitude,
       locationLongitude: details.locationLongitude,
@@ -129,6 +136,7 @@ class ItemDetailsBottomSheet extends StatelessWidget {
       signalLevelText: details.signalLevelText,
       gsmCsqText: details.gsmCsqText,
       networkSignalBarCount: details.networkSignalBarCount,
+      showNetworkSignal: details.showNetworkSignal,
       firmwareVersionText: details.firmwareVersionText,
       resetReasonText: details.resetReasonText,
       geofenceSummaryText: details.geofenceSummaryText,
@@ -148,6 +156,7 @@ class ItemDetailsBottomSheet extends StatelessWidget {
   final Color connectionColor;
   final String? lastCommunicationText;
   final String locationTypeText;
+  final String? locationPlaceName;
   final String? locationTimestampText;
   final double? locationLatitude;
   final double? locationLongitude;
@@ -161,6 +170,7 @@ class ItemDetailsBottomSheet extends StatelessWidget {
   final String signalLevelText;
   final String? gsmCsqText;
   final int? networkSignalBarCount;
+  final bool showNetworkSignal;
   final String? firmwareVersionText;
   final String? resetReasonText;
   final String geofenceSummaryText;
@@ -182,14 +192,6 @@ class ItemDetailsBottomSheet extends StatelessWidget {
       return batteryStatusText;
     }
     return null;
-  }
-
-  String? get _gnssSupportingValue {
-    final parts = <String>[?gnssTimestampText];
-    if (parts.isEmpty) {
-      return null;
-    }
-    return parts.join(' · ');
   }
 
   @override
@@ -245,6 +247,7 @@ class ItemDetailsBottomSheet extends StatelessWidget {
                 batteryMainValue: _batteryMainValue,
                 batterySupportingValue: _batterySupportingValue,
                 locationTypeText: locationTypeText,
+                locationPlaceName: locationPlaceName,
                 locationTimestampText: locationTimestampText,
                 locationLatitude: locationLatitude,
                 locationLongitude: locationLongitude,
@@ -252,51 +255,24 @@ class ItemDetailsBottomSheet extends StatelessWidget {
                 locationAddressLookup: locationAddressLookup,
                 textTheme: textTheme,
               ),
-              const SizedBox(height: AppSpacing.md),
-              Text('Tracking Status', style: textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.sm),
-              _DetailsCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _MetricTile(
-                      icon: AppIcons.gps,
-                      iconColor: AppColors.textPrimary,
-                      label: 'Location status',
-                      value: gnssStatusText,
-                      supportingValue: _gnssSupportingValue,
-                      textTheme: textTheme,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _MetricTile(
-                      icon: Icons.signal_cellular_alt_rounded,
-                      iconColor: AppColors.textPrimary,
-                      label: 'Network Signal',
-                      value: networkSignalBarCount == null
-                          ? signalLevelText
-                          : null,
-                      valueWidget: networkSignalBarCount == null
-                          ? null
-                          : CellularSignalStrengthIndicator(
-                              barCount: networkSignalBarCount!,
-                              label: signalLevelText,
-                            ),
-                      textTheme: textTheme,
-                    ),
-                  ],
-                ),
-              ),
-              if (firmwareVersionText != null || resetReasonText != null) ...[
+              if (showNetworkSignal) ...[
                 const SizedBox(height: AppSpacing.md),
-                Text('Device Information', style: textTheme.titleMedium),
+                Text('Network Signal', style: textTheme.titleMedium),
                 const SizedBox(height: AppSpacing.sm),
                 _DetailsCard(
                   child: _MetricTile(
-                    icon: Icons.memory_rounded,
+                    icon: Icons.signal_cellular_alt_rounded,
                     iconColor: AppColors.textPrimary,
-                    label: 'Firmware',
-                    value: firmwareVersionText ?? 'Not reported by tracker',
-                    supportingValue: resetReasonText,
+                    label: 'Network Signal',
+                    value: networkSignalBarCount == null
+                        ? signalLevelText
+                        : null,
+                    valueWidget: networkSignalBarCount == null
+                        ? null
+                        : CellularSignalStrengthIndicator(
+                            barCount: networkSignalBarCount!,
+                            label: signalLevelText,
+                          ),
                     textTheme: textTheme,
                   ),
                 ),
@@ -336,7 +312,6 @@ class _HeaderSection extends StatelessWidget {
     required this.connectionColor,
     required this.textTheme,
   });
-
   final String itemName;
   final String deviceId;
   final String connectionStatus;
@@ -438,6 +413,7 @@ class _DeviceOverviewCard extends StatelessWidget {
     required this.batteryMainValue,
     required this.batterySupportingValue,
     required this.locationTypeText,
+    required this.locationPlaceName,
     required this.locationTimestampText,
     required this.locationLatitude,
     required this.locationLongitude,
@@ -453,6 +429,7 @@ class _DeviceOverviewCard extends StatelessWidget {
   final String? batteryMainValue;
   final String? batterySupportingValue;
   final String locationTypeText;
+  final String? locationPlaceName;
   final String? locationTimestampText;
   final double? locationLatitude;
   final double? locationLongitude;
@@ -487,7 +464,8 @@ class _DeviceOverviewCard extends StatelessWidget {
           iconColor: AppColors.textPrimary,
           label: 'Location',
           valueWidget: _LocationValue(
-            locationTypeText: locationTypeText,
+             locationTypeText: locationTypeText,
+             locationPlaceName: locationPlaceName,
             latitude: locationLatitude,
             longitude: locationLongitude,
             coordinatesText: locationCoordinatesText,
@@ -538,6 +516,7 @@ class _DeviceOverviewCard extends StatelessWidget {
 class _LocationValue extends StatelessWidget {
   const _LocationValue({
     required this.locationTypeText,
+    required this.locationPlaceName,
     required this.latitude,
     required this.longitude,
     required this.coordinatesText,
@@ -546,6 +525,7 @@ class _LocationValue extends StatelessWidget {
   });
 
   final String locationTypeText;
+  final String? locationPlaceName;
   final double? latitude;
   final double? longitude;
   final String? coordinatesText;
@@ -565,7 +545,8 @@ class _LocationValue extends StatelessWidget {
           locationTypeText,
           style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
         ),
-        if (latitude != null &&
+        if (locationPlaceName == null &&
+          latitude != null &&
             longitude != null &&
             coordinatesText != null) ...[
           const SizedBox(height: AppSpacing.xs),

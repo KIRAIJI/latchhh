@@ -13,8 +13,14 @@ abstract final class ItemPresentationAdapter {
 
   static ItemCompactCardData _buildItem(LatchItem item) {
     final connection = _connectionPresentation(item.status.connection);
+    final isOffline = item.status.connection == 'offline';
+    final isLive = item.status.connection == 'online';
     final geofence = item.geofence;
-    final baseLocationLabel = item.location.source == 'wifi'
+    final baseLocationLabel = isOffline && item.location.hasCoordinates
+        ? item.location.source == 'wifi'
+              ? 'Estimated last known location'
+              : 'Last known location'
+        : item.location.source == 'wifi'
         ? item.location.type == 'current'
               ? 'Estimated current location'
               : 'Estimated last known location'
@@ -27,10 +33,15 @@ abstract final class ItemPresentationAdapter {
     final locationLabel = specificPlace == null
         ? baseLocationLabel
         : '$baseLocationLabel · $specificPlace';
-    final recordedAt = _formatDate(item.location.recordedAt);
-    final battery = item.status.batteryPercentage == null
-        ? 'Battery not reported'
-        : '${item.status.batteryPercentage}% battery';
+    final battery = switch (item.status.powerState) {
+      _ when !isLive => isOffline
+          ? 'Battery unavailable while offline'
+          : 'Battery unavailable while connection is stale',
+      'charging' => 'Charging',
+      'full' => 'Fully charged',
+      _ when item.status.batteryPercentage == null => 'Battery not reported',
+      _ => '${item.status.batteryPercentage}% battery',
+    };
 
     final details = ItemDetailsData(
       itemId: item.id,
@@ -39,12 +50,10 @@ abstract final class ItemPresentationAdapter {
       connectionStatus: connection.label,
       connectionIcon: connection.icon,
       connectionColor: connection.color,
-      lastCommunicationText: _formatDate(item.status.lastCommunicationAt),
+      lastCommunicationText: null,
       locationTypeText: locationLabel,
-      locationTimestampText: recordedAt == null
-          ? null
-          : 'Recorded $recordedAt'
-                '${item.location.accuracyMeters == null ? '' : ' · Approx. ±${item.location.accuracyMeters!.round()} m'}',
+      locationPlaceName: item.location.placeName,
+      locationTimestampText: null,
       locationLatitude: item.location.latitude,
       locationLongitude: item.location.longitude,
       locationCoordinatesText: item.location.hasCoordinates
@@ -53,28 +62,34 @@ abstract final class ItemPresentationAdapter {
               item.location.longitude!,
             )
           : null,
-      batteryPercentageText: item.status.batteryPercentage == null
+        batteryPercentageText: !isLive || item.status.batteryPercentage == null
           ? null
           : '${item.status.batteryPercentage}%',
       batteryStatusText: _batteryStatusLabel(item.status),
       gnssStatusText: _gnssStatusLabel(
         item.status.gnssStatus,
         item.status.connection,
+        item.location.hasCoordinates,
       ),
-      gnssTimestampText: item.status.lastTelemetryAt == null
-          ? null
-          : 'Reported ${_formatDate(item.status.lastTelemetryAt)}',
+      gnssTimestampText: null,
       satellitesText: item.status.satellites == null
           ? null
           : '${item.status.satellites} satellites visible',
       hdopText: item.status.hdop == null ? null : 'HDOP ${item.status.hdop}',
-      signalLevelText: item.status.gsmCsq == null
+        signalLevelText: !isLive
+            ? isOffline
+              ? 'Unavailable while offline'
+              : 'Unavailable while not connected'
+          : item.status.gsmCsq == null
           ? 'Not reported by tracker'
           : _title(item.status.gsmSignalLevel),
       gsmCsqText: item.status.gsmCsq == null
           ? null
           : 'CSQ ${item.status.gsmCsq}',
-      networkSignalBarCount: _signalBars(item.status.gsmSignalLevel),
+        networkSignalBarCount: !isLive
+          ? null
+          : _signalBars(item.status.gsmSignalLevel),
+        showNetworkSignal: isLive,
       firmwareVersionText: item.status.firmwareVersion == null
           ? null
           : 'Version ${item.status.firmwareVersion}',
@@ -98,7 +113,7 @@ abstract final class ItemPresentationAdapter {
       connectionStatusColor: connection.color,
       batteryLabel: battery,
       locationLabel: locationLabel,
-      locationTimeLabel: recordedAt ?? 'Location unavailable',
+      locationTimeLabel: '',
       itemDetails: details,
     );
   }
@@ -142,6 +157,12 @@ abstract final class ItemPresentationAdapter {
   }
 
   static String _batteryStatusLabel(LatchItemStatus status) {
+    if (status.connection != 'online') {
+      return status.connection == 'offline'
+          ? 'Unavailable while offline'
+          : 'Unavailable while connection is stale';
+    }
+
     return switch (status.powerState) {
       'charging' => 'Charging',
       'full' => 'Fully charged',
@@ -167,25 +188,21 @@ abstract final class ItemPresentationAdapter {
     };
   }
 
-  static String _gnssStatusLabel(String status, String connection) {
+  static String _gnssStatusLabel(
+    String status,
+    String connection,
+    bool hasCoordinates,
+  ) {
+    if (connection != 'online') {
+      return hasCoordinates ? 'Last known location' : 'Location unavailable';
+    }
+
     final label = switch (status) {
       'fixed' => 'Location available',
       'no_fix' => 'Finding location',
       _ => 'Unknown',
     };
-    return connection == 'online' || status == 'unknown'
-        ? label
-        : '$label (last reported)';
-  }
-
-  static String? _formatDate(DateTime? value) {
-    if (value == null) return null;
-    final local = value.toLocal();
-    final month = local.month.toString().padLeft(2, '0');
-    final day = local.day.toString().padLeft(2, '0');
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '${local.year}-$month-$day $hour:$minute';
+    return label;
   }
 
   static String _title(String value) {

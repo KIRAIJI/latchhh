@@ -10,20 +10,13 @@ use Throwable;
 
 class PlaceNameResolver
 {
-    /** @var list<string> */
-    private const PRIORITY_TYPES = [
-        'school',
-        'university',
-        'primary_school',
-        'secondary_school',
-        'hospital',
-        'shopping_mall',
-        'lodging',
-        'church',
-    ];
+    private const RESOLVER_VERSION = 'v4';
 
     public function resolveForDevice(Device $device): void
     {
+        $versionKey = 'place-name-resolver:device:'
+            .$device->id.':'.$device->claim_version;
+
         if (
             ! config('latch.places.enabled')
             || blank(config('latch.places.api_key'))
@@ -31,7 +24,8 @@ class PlaceNameResolver
             || $device->last_longitude === null
             || $device->last_position_at === null
             || ($device->last_place_resolved_at
-                && $device->last_place_resolved_at->greaterThanOrEqualTo($device->last_position_at))
+                && $device->last_place_resolved_at->greaterThanOrEqualTo($device->last_position_at)
+                && Cache::get($versionKey) === self::RESOLVER_VERSION)
         ) {
             return;
         }
@@ -51,6 +45,7 @@ class PlaceNameResolver
                     'last_place_name' => $name,
                     'last_place_resolved_at' => $positionAt,
                 ]);
+            Cache::forever($versionKey, self::RESOLVER_VERSION);
         } catch (ConnectionException $exception) {
             report($exception);
         } catch (Throwable $exception) {
@@ -60,7 +55,7 @@ class PlaceNameResolver
 
     public function resolve(float $latitude, float $longitude): ?string
     {
-        $cacheKey = 'place-name-v3:'.hash('sha256', sprintf('%.4F,%.4F', $latitude, $longitude));
+        $cacheKey = 'place-name-v4:'.hash('sha256', sprintf('%.5F,%.5F', $latitude, $longitude));
         $cached = Cache::get($cacheKey);
 
         if (is_array($cached) && array_key_exists('name', $cached)) {
@@ -119,10 +114,6 @@ class PlaceNameResolver
                 && is_numeric(data_get($place, 'location.latitude'))
                 && is_numeric(data_get($place, 'location.longitude')))
             ->map(function (array $place) use ($latitude, $longitude): array {
-                $types = is_array($place['types'] ?? null) ? $place['types'] : [];
-                $priority = collect(self::PRIORITY_TYPES)
-                    ->search(fn (string $type) => in_array($type, $types, true));
-
                 return [
                     'name' => data_get($place, 'displayName.text'),
                     'address' => data_get($place, 'formattedAddress'),
@@ -132,7 +123,6 @@ class PlaceNameResolver
                         (float) data_get($place, 'location.latitude'),
                         (float) data_get($place, 'location.longitude'),
                     ),
-                    'priority' => $priority === false ? count(self::PRIORITY_TYPES) : $priority,
                 ];
             })
             ->filter(fn (array $place) => (
@@ -140,7 +130,7 @@ class PlaceNameResolver
                     || (is_string($place['address'])
                         && trim($place['address']) !== '')
                 ) && $place['distance'] <= $radius)
-            ->sortBy(fn (array $place) => sprintf('%02d-%012.4f', $place['priority'], $place['distance']))
+            ->sortBy('distance')
             ->first();
 
         if (! is_array($candidates)) {
